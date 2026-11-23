@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kitchen Table</title>
+<meta name="description" content="A realistic 3D food preparation simulator: heat really moves into the food, browning and doneness follow sourced food science.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='16' cy='18' rx='13' ry='8' fill='%23b4532a'/%3E%3Cellipse cx='16' cy='16' rx='13' ry='8' fill='%23e07a4a'/%3E%3Cellipse cx='16' cy='16' rx='6' ry='3.5' fill='%23f4b39a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="css/app.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span>Kitchen Table</span></div>
+    <div class="clock" title="Simulated time"><span class="lbl">Sim time</span> <span id="clock" class="mono">0:00</span></div>
+    <div class="speed seg" role="group" aria-label="Simulation speed" id="speed">
+      <button data-speed="0" title="Pause (Space)">❚❚</button>
+      <button data-speed="1" class="on">1×</button>
+      <button data-speed="5">5×</button>
+      <button data-speed="15">15×</button>
+      <button data-speed="60">60×</button>
+    </div>
+    <div class="topbtns">
+      <button id="btnThermal" class="tbtn" title="Show temperature everywhere (V)">Thermal view</button>
+      <button id="btnSources" class="tbtn" title="Where every number comes from">Sources</button>
+      <button id="btnHelp" class="tbtn" title="How to use">Help</button>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="msg" id="stageMsg">Loading…</div>
+    <nav class="tools" id="tools" aria-label="Tools"></nav>
+    <div class="hint" id="hint"></div>
+    <svg class="cutline" id="cutline" aria-hidden="true"><line x1="0" y1="0" x2="0" y2="0"/></svg>
+    <div class="pantry" id="pantry" aria-label="Pantry"></div>
+    <div class="views" id="views" aria-label="Camera"></div>
+  </div>
+
+  <aside class="panel" id="panel" aria-label="Controls and readouts">
+    <section class="card" id="stoveCard"></section>
+    <section class="card" id="itemCard"></section>
+    <section class="card" id="probeCard"></section>
+  </aside>
+</div>
+
+<dialog id="dlgSources" class="dlg"><form method="dialog"><h2>Where the numbers come from</h2><div id="sourcesBody"></div><menu><button class="tbtn">Close</button></menu></form></dialog>
+<dialog id="dlgHelp" class="dlg"><form method="dialog"><h2>How to use the kitchen</h2>
+  <ul class="help">
+    <li><b>Get food:</b> click an item in the pantry tray. It appears on the cutting board.</li>
+    <li><b>Hand (H):</b> drag food to the pan, into the pot, onto the board or the plate.</li>
+    <li><b>Burners:</b> set the flame for the pan and the pot in the panel on the right.</li>
+    <li><b>Tongs (T):</b> click food to flip it.</li>
+    <li><b>Probe (P):</b> click food to push a thermometer to its centre. The chart records it.</li>
+    <li><b>Knife (K):</b> drag a line across food to cut it, and see the inside.</li>
+    <li><b>Time:</b> speed up to 60×, or fast-forward until the probe reads a temperature.</li>
+    <li><b>Thermal view (V):</b> colours every surface and cut face by temperature.</li>
+  </ul>
+  <p class="small">Heat really travels through each piece of food on a 1–3 mm grid. Browning, doneness, juice loss and food-safety flags come from sourced food science; see Sources.</p>
+  <menu><button class="tbtn">Got it</button></menu></form></dialog>
+<pre id="diag" class="diag" hidden></pre>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
