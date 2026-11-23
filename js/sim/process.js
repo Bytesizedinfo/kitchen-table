@@ -12,6 +12,7 @@ function table(spec, dt) {
   const key = JSON.stringify(spec) + '|' + dt;
   let t = tables.get(key);
   if (t) return t;
+  if (spec.type === 'chill') { t = { a: null, b: null, floor: -1e9 }; tables.set(key, t); return t; }
   const a = new Float32Array(NT), b = new Float32Array(NT);
   let floor = 1e9;
   for (let i = 0; i < NT; i++) {
@@ -37,7 +38,7 @@ function table(spec, dt) {
 export function resolveProcs(list) {
   return list.map((p) => {
     const o = { ...p };
-    for (const k of ['Tm', 'w', 'tau', 'kref', 'Ea', 'Tref', 'kmul']) if (typeof o[k] === 'string') o[k] = pv(o[k]);
+    for (const k of ['Tm', 'w', 'tau', 'kref', 'Ea', 'Tref', 'kmul', 'Tc', 'days']) if (typeof o[k] === 'string') o[k] = pv(o[k]);
     if (o.kmul) { o.kref *= o.kmul; delete o.kmul; }
     return o;
   });
@@ -63,6 +64,13 @@ export function processStep(piece, dt) {
           let ti = (t - T_MIN + 0.5) | 0; ti = ti < 0 ? 0 : ti >= NT ? NT - 1 : ti;
           const Deq = A[ti];
           if (Deq > arr[c]) arr[c] += (Deq - arr[c]) * B[ti];
+        }
+      } else if (spec.type === 'chill') {
+        // chilling injury dose: accumulates below Tc, reaching 1 after `days` at 5 °C (irreversible)
+        const rate = 1 / (spec.days * 86400 * (spec.Tc - 5));
+        for (let q = 0; q < cells.length; q++) {
+          const c = cells[q], t = T[c];
+          if (t < spec.Tc) arr[c] += rate * (spec.Tc - t) * dt;
         }
       } else if (spec.type === 'arrh1') {
         const K = tb.b;

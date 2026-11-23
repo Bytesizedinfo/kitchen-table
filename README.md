@@ -12,6 +12,14 @@ A realistic 3D food preparation simulator in the browser. Heat really moves thro
 - Thermal view colours every surface and cut face by temperature. Time runs at 1× to 60×.
 - Readouts: centre and coldest-point temperature, doneness, USDA safety (63 °C + 3 min for beef), cooking loss, browning.
 
+## Phase 2a: knife & vegetables
+
+- Fruit & veg with USDA compositions: onion (real layers), carrot, tomato, apple, lemon, banana, strawberry, avocado, garlic, red pepper, potato.
+- Knife presets with the culinary-school sizes: slices, batonnet, julienne, small/medium/large dice, brunoise. Mass, water and heat are conserved exactly; small pieces become light "bits" you can drag as a pile, fry and stir with the spatula.
+- Peeler, lemon juice and ascorbic acid. Cut apple, avocado, banana and potato brown in air (browning enzyme, slowed by acid, stopped by heat).
+- Onion sweats, turns translucent, golden, then deep brown; tomato skins split after 30–60 s in boiling water; bananas brown in the fridge.
+- Fats and oils with smoke points (butter, ghee, olive oils, canola, sunflower, peanut).
+
 ## The science
 
 Every number is in [SOURCES.md](SOURCES.md) (also in the app under **Sources**), tagged as sourced, calibrated or constant. Tests in `js/test/tests.js` check the simulator against exact heat-conduction solutions and against the sourced behaviours (Williams' boiled egg, egg proteins at 64 °C, surfaces held below boiling while wet, pectin kinetics, USDA holds, steak doneness and cooking loss).

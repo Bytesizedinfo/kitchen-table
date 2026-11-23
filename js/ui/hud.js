@@ -3,14 +3,25 @@ import { el, fmtT, fmtClock } from './dom.js';
 import { LineChart, legend } from './charts.js';
 import { TOOLS } from '../interact/tools.js';
 import { P, SRC, pv } from '../sim/params.js';
+import { FOODS } from '../sim/foods.js';
+import { PRESETS } from '../geom/presets.js';
 
-export const PANTRY = [
-  { id: 'steak', label: 'Strip steak', sub: '25 mm · fridge 4 °C', color: 'linear-gradient(135deg,#9b2b2f,#5c1418)', opts: { T0: 4 } },
-  { id: 'egg', label: 'Egg', sub: '57 g · fridge 4 °C', color: 'radial-gradient(circle at 40% 35%,#fffaf0,#e6dccb)', opts: { T0: 4 } },
-  { id: 'egg', label: 'Egg', sub: '57 g · room 22 °C', color: 'radial-gradient(circle at 40% 35%,#fff,#d9cdb8)', opts: { T0: 22 } },
-  { id: 'potato', label: 'Potato', sub: '≈210 g · room 22 °C', color: 'radial-gradient(circle at 40% 35%,#b98a55,#6e4a26)', opts: { T0: 22 } },
+export const CATEGORIES = [
+  { id: 'veg', name: 'Fruit & veg' },
+  { id: 'meat', name: 'Meat & fish' },
+  { id: 'dairy', name: 'Dairy & eggs' },
+  { id: 'bakery', name: 'Bakery & cakes' },
+  { id: 'sweets', name: 'Sweets' },
 ];
+const SW = {
+  steak: 'linear-gradient(135deg,#9b2b2f,#5c1418)', egg: 'radial-gradient(circle at 40% 35%,#fffaf0,#e6dccb)', potato: 'radial-gradient(circle at 40% 35%,#b98a55,#6e4a26)',
+  onion: 'radial-gradient(circle at 40% 35%,#e6c28a,#9a6a34)', carrot: 'linear-gradient(135deg,#f08a2a,#c2560f)', tomato: 'radial-gradient(circle at 40% 35%,#f05a45,#a5170e)',
+  apple: 'radial-gradient(circle at 40% 35%,#e0473f,#8c1418)', lemon: 'radial-gradient(circle at 40% 35%,#ffe766,#e0b812)', banana: 'linear-gradient(135deg,#f7dc5a,#d6a823)',
+  strawberry: 'radial-gradient(circle at 40% 35%,#ef4b5a,#a3101e)', avocado: 'radial-gradient(circle at 40% 35%,#4b5f2a,#1d2810)', garlic: 'radial-gradient(circle at 40% 35%,#fbf6ea,#d8ccb2)',
+  pepper: 'radial-gradient(circle at 40% 35%,#ef3a2a,#9a1208)',
+};
 
+const OILS = [['none', 'Dry pan', null], ['butter', 'Butter', 'smoke_butter'], ['ghee', 'Ghee', 'smoke_ghee'], ['evoo', 'Extra-virgin olive oil', 'smoke_evoo'], ['olive', 'Refined olive oil', 'smoke_olive'], ['canola', 'Canola oil', 'smoke_canola'], ['sunflower', 'Sunflower oil', 'smoke_sunflower'], ['peanut', 'Peanut oil', 'smoke_peanut']];
 const flameLabel = (s) => (s <= 0 ? 'Off' : s < 2.5 ? 'Simmer' : s < 4.5 ? 'Low' : s < 6.5 ? 'Medium' : s < 8.5 ? 'Medium-high' : 'High');
 
 export class Hud {
@@ -18,6 +29,7 @@ export class Hud {
     this.app = app;
     this.buildTools();
     this.buildPantry();
+    this.buildPresets();
     this.buildViews();
     this.buildStove();
     this.itemCard = document.getElementById('itemCard');
@@ -44,16 +56,49 @@ export class Hud {
       this.toolBtns[t.id] = b;
     }
   }
-  setTool(id) { for (const k in this.toolBtns) this.toolBtns[k].classList.toggle('on', k === id); }
+  setTool(id) { for (const k in this.toolBtns) this.toolBtns[k].classList.toggle('on', k === id); document.getElementById('presets').classList.toggle('show', id === 'knife'); }
   buildPantry() {
     const p = document.getElementById('pantry');
-    p.append(el('span', { class: 'lbl' }, 'Pantry'));
-    for (const f of PANTRY) {
-      const b = el('button', { class: 'food', title: `Put a ${f.label.toLowerCase()} on the board`, onclick: () => this.app.spawn(f.id, f.opts) },
-        el('span', { class: 'sw', style: `background:${f.color}` }), el('span', {}, f.label, el('small', {}, f.sub)));
-      p.append(b);
+    this.cat = 'veg'; this.fromFridge = false; this.search = '';
+    const tabs = el('div', { class: 'ptabs', role: 'tablist' });
+    for (const c of CATEGORIES) {
+      const b = el('button', { role: 'tab', 'data-cat': c.id, onclick: () => { this.cat = c.id; this.search = ''; srch.value = ''; this.renderPantry(); } }, c.name);
+      tabs.append(b);
     }
-    p.append(el('button', { class: 'food', title: 'Remove everything from the table', onclick: () => this.app.clearTable() }, el('span', {}, 'Clear', el('small', {}, 'table'))));
+    const srch = el('input', { type: 'search', placeholder: 'Search food', 'aria-label': 'Search food', class: 'psearch' });
+    srch.oninput = () => { this.search = srch.value.trim().toLowerCase(); this.renderPantry(); };
+    const temp = el('div', { class: 'seg small', role: 'group', 'aria-label': 'Starting temperature' });
+    const tb = (lbl, v) => el('button', { onclick: () => { this.fromFridge = v; [...temp.children].forEach((x, i) => x.classList.toggle('on', (i === 1) === v)); } }, lbl);
+    temp.append(tb('Room 22 °C', false), tb('Fridge 4 °C', true));
+    temp.children[0].classList.add('on');
+    const clear = el('button', { class: 'tbtn', title: 'Remove everything from the table', onclick: () => this.app.clearTable() }, 'Clear table');
+    this.pantryItems = el('div', { class: 'pitems' });
+    p.append(el('div', { class: 'phead' }, tabs, srch, temp, clear), this.pantryItems);
+    this.renderPantry();
+  }
+  renderPantry() {
+    const box = this.pantryItems;
+    box.replaceChildren();
+    document.querySelectorAll('.ptabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.cat === this.cat && !this.search)));
+    const items = Object.entries(FOODS).filter(([id, f]) => f.cat && (this.search ? f.name.toLowerCase().includes(this.search) : f.cat === this.cat));
+    for (const [id, f] of items) {
+      const [name, size] = f.name.split(' (');
+      const b = el('button', { class: 'food', title: `Put ${name.toLowerCase()} on the board`, onclick: () => this.app.spawn(id, { T0: this.fromFridge ? 4 : 22 }) },
+        el('span', { class: 'sw', style: `background:${SW[id] || '#888'}` }), el('span', {}, name, el('small', {}, size ? '(' + size : '')));
+      box.append(b);
+    }
+    if (!items.length) box.append(el('span', { class: 'lbl' }, this.search ? 'Nothing matches.' : 'Coming in the next update.'));
+  }
+  buildPresets() {
+    const bar = document.getElementById('presets');
+    const btns = [];
+    const mk = (id, name, sub) => {
+      const b = el('button', { onclick: () => { this.app.knifePreset = id; btns.forEach((x) => x.classList.toggle('on', x === b)); this.hint(id === 'free' ? 'Drag a line across food to cut it' : `Click food to cut it: ${name}${sub ? ' (' + sub + ')' : ''}`); } }, name, sub ? el('small', {}, sub) : null);
+      btns.push(b); bar.append(b); return b;
+    };
+    mk('free', 'Free cut', 'drag a line').classList.add('on');
+    for (const p of PRESETS) mk(p.id, p.name, p.sub);
+    this.app.knifePreset = 'free';
   }
   buildViews() {
     const v = document.getElementById('views');
@@ -83,9 +128,13 @@ export class Hud {
       return { val, st, fl, range, box };
     };
     this.pan = mk(0, 'Pan', 'cast iron, 2.4 kg');
-    const oil = el('input', { type: 'checkbox', checked: true });
-    oil.onchange = () => { W.pan.oiled = oil.checked; };
-    this.pan.box.append(el('div', { class: 'btnrow' }, el('label', { class: 'chk' }, oil, 'Thin film of oil'), el('button', { class: 'tbtn', onclick: () => { W.pan.pool = 0; } }, 'Wipe pan')));
+    const oil = el('select', { class: 'oilsel', 'aria-label': 'Fat in the pan' });
+    for (const [id, name, smoke] of OILS) oil.append(el('option', { value: id }, smoke ? `${name} · smokes ≈${pv(smoke)} °C` : name));
+    oil.value = 'canola';
+    oil.onchange = () => setOil(oil.value);
+    const setOil = (id) => { const o = OILS.find((x) => x[0] === id); W.pan.oil = id; W.pan.oiled = id !== 'none'; W.pan.smokePoint = o[2] ? pv(o[2]) : null; };
+    setOil('canola');
+    this.pan.box.append(el('div', { class: 'btnrow' }, el('label', { class: 'chk' }, 'Fat', oil), el('button', { class: 'tbtn', onclick: () => { W.pan.pool = 0; } }, 'Wipe pan')));
     this.pot = mk(1, 'Pot', '2 L water');
     const lid = el('input', { type: 'checkbox' });
     lid.onchange = () => { W.pot.lid = lid.checked; };
@@ -106,7 +155,39 @@ export class Hud {
     this.legendBox = el('div', {});
     c.append(this.legendBox);
   }
+  renderBits(bit, W) {
+    const c = this.itemCard;
+    c.replaceChildren(el('h3', {}, 'Selected'));
+    this.itemRows = null;
+    this.bitSel = bit;
+    this.itemTitle = el('div', { style: 'font-weight:600;margin-bottom:6px' }, bit.label + ', cut');
+    const dl = el('dl', { class: 'kv' });
+    const row = (k) => { const dd = el('dd', {}, '—'); dl.append(el('dt', {}, k), dd); return dd; };
+    this.bitRows = { n: row('Pieces'), size: row('Size'), where: row('On'), core: row('Centre (mean)'), soft: row('Texture'), brown: row('Browning'), enz: row('Browned in air'), mass: row('Weight') };
+    c.append(this.itemTitle, dl, el('div', { class: 'btnrow' }, el('button', { class: 'tbtn', onclick: () => this.app.removeBatch(bit.batch) }, 'Remove')));
+    this.updateBits(W);
+  }
+  updateBits(W) {
+    const b0 = this.bitSel; if (!b0 || !this.bitRows) return;
+    const bits = W.bits.filter((b) => b.batch === b0.batch);
+    if (!bits.length) { this.renderItem(null); return; }
+    const r = this.bitRows, n = bits.length;
+    const avg = (f) => bits.reduce((a, b) => a + f(b), 0) / n;
+    r.n.textContent = String(n);
+    r.size.textContent = b0.dims.map((d) => (d * 1000).toFixed(0)).sort((a, b) => b - a).join(' × ') + ' mm';
+    const sup = { pan: 'the pan', pot: 'the pot', board: 'the board', plate: 'the plate', table: 'the table' };
+    r.where.textContent = sup[bits[0].support] || 'the board';
+    r.core.textContent = fmtT(avg((b) => b.Tc));
+    const firm = avg((b) => b.procs.firm ?? 1);
+    r.soft.textContent = firm > 0.9 ? 'raw, crisp' : firm > 0.5 ? 'crisp-tender' : firm > 0.15 ? 'tender, translucent' : 'very soft';
+    const br = avg((b) => b.brown);
+    r.brown.textContent = br < 0.05 ? 'none' : br < 0.4 ? 'light golden' : br < 1.2 ? 'golden-brown' : br < 2.5 ? 'deep brown' : 'very dark';
+    const ez = avg((b) => b.enz);
+    r.enz.textContent = ez < 0.3 ? 'no' : ez < 1 ? 'starting' : 'yes';
+    r.mass.textContent = `${(bits.reduce((a, b) => a + b.mass(), 0) * 1000).toFixed(0)} g`;
+  }
   renderItem(p) {
+    this.bitSel = null; this.bitRows = null;
     const c = this.itemCard;
     c.replaceChildren(el('h3', {}, 'Selected'));
     if (!p) { c.append(el('div', { class: 'empty' }, 'Click a piece of food to see what is happening inside it.')); this.itemRows = null; return; }
@@ -143,19 +224,17 @@ export class Hud {
     const pr = W.probe;
     if (!pr) { this.probeVal.textContent = '—'; this.probeSub.textContent = 'Pick the probe (P) and click food to measure its centre.'; return; }
     this.probeVal.textContent = fmtT(pr.Tshown);
-    this.probeSub.textContent = `In: ${pr.piece.label.toLowerCase()} · tip at its thermal centre`;
+    this.probeSub.textContent = pr.bit ? `In: a piece of ${pr.bit.label.toLowerCase()}` : `In: ${pr.piece.label.toLowerCase()} · tip at its thermal centre`;
     const h = pr.history;
     if (!h.length) return;
     const t0 = h[0][0], t1 = Math.max(h[h.length - 1][0], t0 + 60);
     const step = Math.max(1, Math.floor(h.length / 300));
     const pts = []; for (let i = 0; i < h.length; i += step) pts.push([(h[i][0] - t0) / 60, h[i][1]]);
     pts.push([(h[h.length - 1][0] - t0) / 60, h[h.length - 1][1]]);
-    const sup = pr.piece.support ? pr.piece.support.kind : '';
+    const sup = pr.bit ? pr.bit.support : pr.piece.support ? pr.piece.support.kind : '';
     const series = [{ name: 'Probe', color: '#f2a65a', points: pts }];
     if (this.envHist && this.envHist.length) series.push({ name: sup === 'pot' ? 'Water' : 'Pan', color: '#6aa7ff', points: this.envHist.filter((x) => x[0] >= t0).map(([t, v]) => [(t - t0) / 60, v]), dash: '3 3' });
     let ymax = 20; for (const s of series) for (const [, y] of s.points) ymax = Math.max(ymax, y);
-    const markers = pr.piece.def.kind === 'meat' ? [{ x: -1 }] : [];
-    void markers;
     this.chart.update({ x: { min: 0, max: (t1 - t0) / 60, label: 'min', fmt: (v) => v.toFixed(v < 10 ? 1 : 0) }, y: { min: 0, max: Math.ceil(ymax / 20) * 20, fmt: (v) => v.toFixed(0) }, series, valueFmt: (v) => v.toFixed(1) + ' °C' });
     this.legendBox.replaceChildren(legend(series.map((s) => ({ name: s.name, color: s.color }))));
   }
@@ -165,7 +244,7 @@ export class Hud {
       if (document.activeElement !== ui.range && +ui.range.value !== b.setting) { ui.range.value = b.setting; ui.fl.textContent = flameLabel(b.setting); }
     }
     this.pan.val.textContent = fmtT(W.pan.T, 0);
-    this.pan.st.textContent = W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
+    this.pan.st.textContent = W.pan.smokePoint && W.pan.T > W.pan.smokePoint ? 'oil smoking!' : W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
     this.pot.val.textContent = fmtT(W.pot.T, 0);
     const P = W.pot;
     this.pot.st.textContent = P.water < 0.05 ? 'boiled dry!' : P.boiling ? `rolling boil · ${(P.water).toFixed(2)} L` : P.T > 85 ? `simmering · ${(P.water).toFixed(2)} L` : `${(P.water).toFixed(2)} L`;
@@ -177,6 +256,7 @@ export class Hud {
     this._t = 0;
     this.updateStove(W);
     this.updateItem(selected, W);
+    this.updateBits(W);
     this.updateProbe(W);
   }
   hint(s) { this.hintEl.textContent = s; }

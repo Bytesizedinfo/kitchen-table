@@ -34,7 +34,20 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .cutline { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .cutline line { stroke: #fff; stroke-width: 2; stroke-dasharray: 6 5; opacity: 0; }
 .cutline.on line { opacity: 0.9; }
-.pantry { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 6px; background: #1f1b17e6; border: 1px solid var(--line); border-radius: 14px; padding: 6px; max-width: calc(100% - 24px); overflow-x: auto; }
+.pantry { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; background: #1f1b17ee; border: 1px solid var(--line); border-radius: 14px; padding: 7px; width: min(980px, calc(100% - 24px)); }
+.phead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ptabs { display: flex; gap: 2px; }
+.ptabs button { border: 0; background: none; color: var(--muted); padding: 4px 9px; border-radius: 7px; font-size: 12.5px; font-weight: 600; }
+.ptabs button[aria-selected=true] { background: var(--panel2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.psearch { background: #15120f; color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; font: inherit; font-size: 12.5px; width: 130px; margin-left: auto; }
+.seg.small button { padding: 3px 8px; font-size: 11.5px; }
+.pitems { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.presets { position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%); display: none; gap: 4px; background: #1f1b17ee; border: 1px solid var(--line); border-radius: 12px; padding: 5px; max-width: calc(100% - 24px); overflow-x: auto; }
+.presets.show { display: flex; }
+.presets button { border: 1px solid transparent; background: none; color: var(--text); padding: 4px 9px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; }
+.presets button small { display: block; color: var(--muted); font-size: 10.5px; }
+.presets button.on { border-color: var(--accent); background: #3b2a1e; }
+.oilsel { background: #15120f; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 3px 5px; font: inherit; font-size: 12px; max-width: 210px; }
 .pantry .lbl { align-self: center; color: var(--muted); font-size: 12px; padding: 0 6px; white-space: nowrap; }
 .food { display: flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 6px 10px 6px 7px; white-space: nowrap; font-size: 13px; }
 .food:hover { border-color: var(--accent); }

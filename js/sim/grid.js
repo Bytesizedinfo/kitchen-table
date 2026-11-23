@@ -71,6 +71,9 @@ export class StateGrid {
     this.brown = new Float32Array(S);
     this.char = new Float32Array(S);
     this.evap = new Float32Array(S); // last evaporation rate kg/s (for sizzle / readouts)
+    this.cut = new Uint8Array(S); // 1 = exposed flesh (cut or peeled), 0 = natural surface
+    this.enz = new Float32Array(S); // enzymatic (PPO) browning index
+    this.coat = new Uint8Array(S); // 0 none, 1 lemon juice, 2 ascorbic acid
     // per-skin area by boundary-condition class (filled by classify)
     this.Acon = new Float32Array(S); this.Aair = new Float32Array(S);
     this.Awat = new Float32Array(S); this.Ains = new Float32Array(S); this.Aoil = new Float32Array(S);
@@ -96,10 +99,13 @@ export class StateGrid {
           this.film[s] = oldG.film[os] * Math.min(1, A / Math.max(1e-12, oldG.skinArea[os]));
           this.brown[s] = oldG.brown[os];
           this.char[s] = oldG.char[os];
+          this.enz[s] = oldG.enz[os]; this.coat[s] = oldG.coat[os];
+          this.cut[s] = oldG.cut[os] || (m & ~oldG.skinMask[os] & 63 ? 1 : 0);
           carried = true;
         }
       }
       if (!carried) {
+        if (keep) this.cut[s] = 1; // a surface that appeared because of a cut
         this.Ts[s] = this.T[c];
         this.skw[s] = this.mw[c] * this.skinFrac[s];
         this.skw0[s] = this.mw0[c] * this.skinFrac[s];

@@ -86,6 +86,7 @@ export function heatStep(piece, env, dt, out) {
   skinStep(piece, env, dt, out);
   // 4. implicit solve along y for each column (contiguous occupied runs)
   const a = g._ta, b = g._tb, cc = g._tc, d = g._td;
+  let dTmax = 0;
   for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
     let j = 0;
     while (j < ny) {
@@ -109,14 +110,17 @@ export function heatStep(piece, env, dt, out) {
         d[r] -= w * d[r - 1];
       }
       let x = d[n - 1] / b[n - 1];
-      T[i + nx * (j1 - 1 + ny * k)] = x;
+      let ci = i + nx * (j1 - 1 + ny * k), dd0 = x - T[ci]; if (dd0 < 0) dd0 = -dd0; if (dd0 > dTmax) dTmax = dd0;
+      T[ci] = x;
       for (let r = n - 2; r >= 0; r--) {
         x = (d[r] - cc[r] * x) / b[r];
-        T[i + nx * (j + r + ny * k)] = x;
+        ci = i + nx * (j + r + ny * k); let dd = x - T[ci]; if (dd < 0) dd = -dd; if (dd > dTmax) dTmax = dd;
+        T[ci] = x;
       }
       j = j1;
     }
   }
+  g._dTmax = dTmax;
   // 4b. the implicit part of the skin flux, −geff·(T'−T), came from the surroundings: book it by class
   {
     const sw = g._sw, T0 = g._T0;
@@ -166,6 +170,8 @@ function skinStep(piece, env, dt, out) {
   const cRate = pv('char_rate200'), cEa = pv('char_Ea') / pv('Rgas'), cT0 = 1 / (pv('char_T0') + 273.15);
   const hDry = con.hDry;
   const moist = piece.moisture;
+  const enzR = pv('enz_rate'), enzW = pv('enz_water'), coatF = [1, pv('enz_lemon'), pv('enz_ascorbic')];
+  const ppoArr = g.proc.ppo;
   let sQcon = 0, sQair = 0, sQwat = 0, sQins = 0, sQoil = 0, sLat = 0, sEv = 0;
   if (!g._sw || g._sw.length !== 5 * g.nSkin) { g._sw = new Float64Array(5 * g.nSkin); g._T0 = new Float64Array(g.nSkin); }
   for (let s = 0; s < g.nSkin; s++) {
@@ -269,15 +275,28 @@ function skinStep(piece, env, dt, out) {
       const f = film < m ? film : m; g.film[s] = film - f; m -= f;
       if (m > 0) { const w = g.skw[s] < m ? g.skw[s] : m; g.skw[s] -= w; mw[c] -= w; }
     }
-    // browning (Maillard) and charring, gated by surface dryness
+    // enzymatic browning (PPO) on exposed flesh: needs oxygen and active enzyme
+    const mdef = piece.mats[g.mat[c]].def;
+    if (mdef.enz && g.cut[s]) {
+      const act = ppoArr ? ppoArr[c] : 1;
+      const tf = Math.pow(2, (Math.min(Ts, 40) - 22) / 10);
+      g.enz[s] += dt * enzR * mdef.enz * act * tf * coatF[g.coat[s]] * (submerged ? enzW : 1);
+    }
+    // browning (Maillard + caramelisation of sugars) and charring, gated by surface dryness
     if (dryness > 0 && Ts > 90) {
       const iT = 1 / tk;
-      const nb = g.brown[s] + dt * dryness * bRate * Math.exp(-bEa * (iT - bT0));
+      const nb = g.brown[s] + dt * dryness * (bRate * Math.exp(-bEa * (iT - bT0)) + (mdef.sugars ? caramelRate(Ts, mdef.sugars) : 0));
       g.brown[s] = nb > 10 ? 10 : nb;
       if (Ts > 150) { const nc = g.char[s] + dt * dryness * cRate * Math.exp(-cEa * (iT - cT0)); g.char[s] = nc > 10 ? 10 : nc; }
     }
   }
   out.Qcon += sQcon; out.Qair += sQair; out.Qwat += sQwat; out.Qins += sQins; out.Qoil += sQoil; out.latent += sLat; out.evap += sEv;
+}
+
+/** Caramelisation browning rate (1/s) at surface temperature Ts for sugars {fru, glu, suc} in g/100 g. */
+export function caramelRate(Ts, sugars) {
+  const k = pv('car_k');
+  return k * (((sugars.fru || 0) / 5) * Math.max(0, Ts - pv('car_fru')) + ((sugars.glu || 0) / 5) * Math.max(0, Ts - pv('car_glu')) + ((sugars.suc || 0) / 5) * Math.max(0, Ts - pv('car_suc'))) / 10;
 }
 
 /** Largest stable time step (s): explicit only in x and z now (y and skin are implicit). */

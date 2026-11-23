@@ -20,8 +20,8 @@ Generated from `js/sim/params.js` (`node tools/sources.mjs > SOURCES.md`).
 | fan oven, forced air (10–100) | `40 W/m²K` | sourced | [Wikipedia — Heat transfer coefficient (typical ranges)](https://en.wikipedia.org/wiki/Heat_transfer_coefficient) |
 | hot still water around food (water forced convection 300–6000) | `400 W/m²K` | calibrated | [Wikipedia — Heat transfer coefficient (typical ranges)](https://en.wikipedia.org/wiki/Heat_transfer_coefficient) |
 | food in rolling-boiling water: agitated forced convection (300–6000) | `1500 W/m²K` | calibrated | [Wikipedia — Heat transfer coefficient (typical ranges)](https://en.wikipedia.org/wiki/Heat_transfer_coefficient) |
-| pan contact through oil/juice: patty contact 250–650 W/m²K | `550 W/m²K` | sourced | [Wichchukit, Zorrilla & Singh (2001) contact heat transfer in double-sided patty cooking: 250–650 W/m²K](https://ri.conicet.gov.ar/handle/11336/30061?show=full) |
-| dry pan contact (low end of 250–650) | `300 W/m²K` | sourced | [Wichchukit, Zorrilla & Singh (2001) contact heat transfer in double-sided patty cooking: 250–650 W/m²K](https://ri.conicet.gov.ar/handle/11336/30061?show=full) |
+| pan contact through oil/juice (≈512 with oil; patties 250–650) | `530 W/m²K` | sourced | [Vine et al. 2019 J. Food Eng. — pan contact h ≈ 512 W/m²K with oil vs 198 dry (potato slices)](https://hal.inrae.fr/hal-02959920) |
+| dry pan contact (≈198 W/m²K) | `200 W/m²K` | sourced | [Vine et al. 2019 J. Food Eng. — pan contact h ≈ 512 W/m²K with oil vs 198 dry (potato slices)](https://hal.inrae.fr/hal-02959920) |
 | food on a wooden board: wood effusivity √(kρc) gives ~15–35 W/m²K over the first minutes | `20 W/m²K` | calibrated | — |
 | emissivity of moist food surfaces | `0.9 ` | calibrated | — |
 | all-purpose burner 12,000 BTU/h ≈ 3.5 kW | `3500 W` | sourced | [Maytag — Gas range BTU ratings (simmer 500–2,000; standard 8,000–12,000; high 12,000–18,000 BTU/h)](https://www.maytag.com/blog/kitchen/gas-range-btu.html) |
@@ -40,6 +40,10 @@ Generated from `js/sim/params.js` (`node tools/sources.mjs > SOURCES.md`).
 | activation energy, inside the 10–160 kJ/mol range reported | `125000 J/mol` | sourced | [Labuza et al. — non-enzymatic browning kinetics & Ea range 10–160 kJ/mol](https://rd.springer.com/chapter/10.1007/978-1-4757-9113-6_25) |
 | browning significant from ~140–150 °C | `140 °C` | sourced | [Food Sci. Anim. Resour. — surface ~150 °C for brown crust (PMC6957442)](https://pmc.ncbi.nlm.nih.gov/articles/PMC6957442) |
 | browning index rate at 140 °C (dry surface); 1.0 = golden-brown, 2 = deep brown crust | `0.0025 1/s` | calibrated | [Modernist Cuisine — The Maillard reaction](https://modernistcuisine.com/2013/03/the-maillar) |
+| fructose caramelisation onset (105–110 °C) | `110 °C` | sourced | [Wikipedia — Caramelization (onset temperatures by sugar)](https://en.wikipedia.org/wiki/Caramelization) |
+| glucose caramelisation onset (150–160 °C) | `155 °C` | sourced | [Wikipedia — Caramelization (onset temperatures by sugar)](https://en.wikipedia.org/wiki/Caramelization) |
+| sucrose caramelisation onset (160–170 °C) | `165 °C` | sourced | [Wikipedia — Caramelization (onset temperatures by sugar)](https://en.wikipedia.org/wiki/Caramelization) |
+| caramelisation browning rate per 5 % sugar per 10 °C above onset | `0.002 1/s` | calibrated | — |
 | charring onset (surface) | `200 °C` | calibrated | — |
 | charring temperature sensitivity | `160000 J/mol` | calibrated | — |
 | char index rate at 200 °C | `0.002 1/s` | calibrated | — |
@@ -76,9 +80,42 @@ Generated from `js/sim/params.js` (`node tools/sources.mjs > SOURCES.md`).
 | all poultry 165 °F (73.9 °C) | `73.9 °C` | sourced | [USDA FSIS — Safe minimum internal temperature chart](https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/safe-temperature-chart) |
 | ground meat 160 °F | `71.1 °C` | sourced | [USDA FSIS — Safe minimum internal temperature chart](https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/safe-temperature-chart) |
 | egg dishes 160 °F | `71.1 °C` | sourced | [USDA FSIS — Safe minimum internal temperature chart](https://www.fsis.usda.gov/food-safety/safe-food-handling-and-preparation/food-safety-basics/safe-temperature-chart) |
-| butter | `150 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
-| refined canola | `204 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
-| extra-virgin olive oil 190–210 | `190 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
+| carrot softening activation energy (73.5–110 kJ/mol) | `92000 J/mol` | sourced | [Cogent Food & Agriculture (2022) — carrot texture kinetics, Ea 73.5–110 kJ/mol](https://doi.org/10.1080/23311932.2022.2114641) |
+| carrot softening rate at 100 °C (sticks tender in ~10 min) | `0.0016 1/s` | calibrated | [Cogent Food & Agriculture (2022) — carrot texture kinetics, Ea 73.5–110 kJ/mol](https://doi.org/10.1080/23311932.2022.2114641) |
+| apple softening activation energy (65–111 kJ/mol) | `88000 J/mol` | sourced | [Penn State — thermal degradation of texture in apples (Ea 65–111 kJ/mol)](https://pure.psu.edu/en/publications/thermal-degradation-of-texture-in-apples/) |
+| apple goes from fresh to cooked texture above 53 °C | `55 °C` | sourced | [INRAE — apple texture changes from fresh to cooked at 53 °C](https://hal.inrae.fr/hal-03341493) |
+| water released from softened onion cells (tuned to 37–43 % loss in 8 min at 140 °C) | `0.0042 1/s` | calibrated | [PMC8151956 — onion pan-fried 8 min at 140 °C loses 37–43 % weight](https://pmc.ncbi.nlm.nih.gov/articles/PMC8151956) |
+| fraction of a curved onion scale touching a flat pan | `0.5 ` | calibrated | — |
+| onion turns translucent as cell membranes fail (tuned to 5–10 min sweating) | `68 °C` | calibrated | [PMC8151956 — onion pan-fried 8 min at 140 °C loses 37–43 % weight](https://pmc.ncbi.nlm.nih.gov/articles/PMC8151956) |
+| onion softening rate at 100 °C (no kinetics source; tuned to sauté stages) | `0.008 1/s` | calibrated | — |
+| PPO (browning enzyme) inactivation rate at 78 °C (apple 0.16–0.28 per min) | `0.0036666666666666666 1/s` | sourced | [Apple PPO thermal inactivation 68–78 °C: z 7.1–10 °C, k(78 °C) 0.16–0.28 per min (Ankara Univ.)](https://avesis.ankara.edu.tr/yayin/22477a7e-7045-4897-a356-47e75d8faea3) |
+| PPO z-value (apple 7.1–10 °C) | `8.5 °C` | sourced | [Apple PPO thermal inactivation 68–78 °C: z 7.1–10 °C, k(78 °C) 0.16–0.28 per min (Ankara Univ.)](https://avesis.ankara.edu.tr/yayin/22477a7e-7045-4897-a356-47e75d8faea3) |
+| PPO inactivation Ea from z = 8.5 °C at 78 °C (Ea = ln10·R·T²/z) | `277710 J/mol` | sourced | [Apple PPO thermal inactivation 68–78 °C: z 7.1–10 °C, k(78 °C) 0.16–0.28 per min (Ankara Univ.)](https://avesis.ankara.edu.tr/yayin/22477a7e-7045-4897-a356-47e75d8faea3) |
+| potato softening activation energy (145–160 kJ/mol) | `152000 J/mol` | sourced | [J. Jpn. Soc. Food Sci. (1985, 1992) — potato softening first-order, Ea 145–160 kJ/mol](https://www.jstage.jst.go.jp/article/nskkk1962/39/4/39_4_295/_article/-char/en) |
+| enzymatic browning index rate on a fresh cut at 22 °C (visible in ~10 min) | `0.0016666666666666668 1/s` | calibrated | [Food Sci. Technol. Res. review — cut apple browns within ~10 min](https://www.jstage.jst.go.jp/article/fstr/28/1/28_FSTR-D-21-00130/_html/-char/en) |
+| lemon juice multiplies the browning rate (acid; less effective than ascorbic) | `0.45 ` | calibrated | [Penn State Extension — preventing browning: ascorbic acid more effective than lemon/citric](https://extension.psu.edu/preserving-color-and-preventing-browning-of-foods) |
+| ascorbic acid dip multiplies the browning rate | `0.12 ` | calibrated | [Penn State Extension — preventing browning: ascorbic acid more effective than lemon/citric](https://extension.psu.edu/preserving-color-and-preventing-browning-of-foods) |
+| under water (no oxygen) multiplies the browning rate | `0.1 ` | calibrated | [Penn State Extension — preventing browning: ascorbic acid more effective than lemon/citric](https://extension.psu.edu/preserving-color-and-preventing-browning-of-foods) |
+| banana chilling injury below 13 °C | `13 °C` | sourced | [Frontiers Plant Sci. 2022 — banana underpeel browning from day 4 at 5 °C (chilling below 13 °C)](https://www.frontiersin.org/articles/10.3389/fpls.2022.966789/full) |
+| underpeel browning visible from ~day 4 at 5 °C | `4 days` | sourced | [Frontiers Plant Sci. 2022 — banana underpeel browning from day 4 at 5 °C (chilling below 13 °C)](https://www.frontiersin.org/articles/10.3389/fpls.2022.966789/full) |
+| tomato skin splits after 30–60 s in boiling water | `45 s` | sourced | [UNL Extension — tomato skins split after 30–60 s in boiling water](https://food.unl.edu/) |
+| brunoise 1/8 in cube | `0.003 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| julienne 1/8 × 1/8 × 2 in | `0.003 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| batonnet 1/4 × 1/4 × 2 in | `0.006 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| julienne / batonnet length 2 in | `0.05 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| small dice 1/4 in | `0.006 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| medium dice 1/2 in | `0.012 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| large dice 3/4 in | `0.019 m` | sourced | [Rouxbe (after CIA Professional Chef) — knife cut dimensions](https://rouxbe.com/tips-techniques/495-types-of-knife-cuts) |
+| default slice thickness | `0.005 m` | calibrated | — |
+| fully cooked spaghetti weight / dry weight (62 % water vs ~10 % dry) | `2.4 ` | sourced | [USDA FDC 169737 — cooked spaghetti 62 % water](https://fdc.nal.usda.gov/food-details/169737/nutrients) |
+| spaghetti al dente at 9 min | `540 s` | sourced | [Barilla Spaghetti n.5 — 9 min al dente](https://www.barilla.com/en-gb/products/pasta/classic-blue-box/spaghetti) |
+| butter smoke point 150–177 °C (Wikipedia 150, CSU 177) | `163 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
+| ghee / clarified butter ≈250 °C (CSU 191–252) | `250 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
+| extra-virgin olive oil 177–210 °C | `193 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
+| refined olive oil 199–243 °C | `220 °C` | sourced | [Colorado State Univ. — cooking with fats and oils (smoke points)](https://www.chhs.colostate.edu/krnc/monthly-blog/cooking-with-fats-and-oils/) |
+| refined canola 204 °C | `204 °C` | sourced | [Wikipedia — Smoke point](https://en.wikipedia.org/wiki/Smoke_point) |
+| sunflower 232 °C | `232 °C` | sourced | [Colorado State Univ. — cooking with fats and oils (smoke points)](https://www.chhs.colostate.edu/krnc/monthly-blog/cooking-with-fats-and-oils/) |
+| peanut 232 °C | `232 °C` | sourced | [Colorado State Univ. — cooking with fats and oils (smoke points)](https://www.chhs.colostate.edu/krnc/monthly-blog/cooking-with-fats-and-oils/) |
 
 ## Models
 

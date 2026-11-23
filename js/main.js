@@ -5,6 +5,8 @@ import { World } from './sim/world.js';
 import { LAYOUT as L } from './sim/layout.js';
 import { flipPiece, faceUp } from './sim/ops.js';
 import { cutPiece, meshPiece } from './geom/cutpiece.js';
+import { applyPreset } from './geom/presets.js';
+import { stepBitPhysics } from './sim/bits.js';
 
 const params = new URLSearchParams(location.search);
 const diag = document.getElementById('diag');
@@ -33,12 +35,14 @@ async function boot() {
   const { Tools } = await import('./interact/tools.js');
   const { Hud } = await import('./ui/hud.js');
   const { Audio } = await import('./audio.js');
+  const { BitView } = await import('./render/bitview.js');
 
   const stageEl = document.getElementById('stage');
   const stage = new Stage(stageEl);
   const world = new World();
   const app = { stage, world, views: new Map(), selected: null, speed: 1, thermal: false, audio: new Audio(), ff: null };
   window.__kt = app;
+  app.bitView = new BitView(stage.scene);
   const kitchen = buildKitchen(stage);
   app.kitchen = kitchen;
   stage.setCamera([0.02, 0.92, 1.28], [0.0, 0.0, -0.03], 0);
@@ -56,6 +60,7 @@ async function boot() {
     return v;
   };
   world.on((type, p) => {
+    if (type === 'bits') { app.bitView.rebuild(world, p); return; }
     if (type === 'remove') { const v = app.views.get(p); if (v) { v.dispose(); app.views.delete(p); } if (app.selected === p) app.selectPiece(null); }
   });
 
@@ -76,7 +81,22 @@ async function boot() {
     setTimeout(() => hud.hint(''), 4000);
     return p;
   };
-  app.clearTable = () => { world.clear(); app.removeProbe(); };
+  app.clearTable = () => { world.clear(); app.removeProbe(); app.bitView.clear(); };
+  app.removeBatch = (batch) => { world.removeBits(world.bits.filter((b) => b.batch === batch)); app.selectPiece(null); };
+  app.selectBits = (bit) => { if (app.selected && app.views.get(app.selected)) app.views.get(app.selected).setHighlight(0); app.selected = null; hud.renderBits(bit, world); };
+  app.onProbeBit = () => { hud.envHist = []; };
+  app.applyPreset = (p, id) => {
+    if (id === 'halve') return app.halveSelected();
+    const t0 = performance.now();
+    const res = applyPreset(world, p, id);
+    if (!res) { hud.hint('That piece is already smaller than the cut.'); return; }
+    for (const r of res.pieces) addView(r.piece, r.mesh);
+    app.audio.chop(); setTimeout(() => app.audio.chop(), 90); setTimeout(() => app.audio.chop(), 180);
+    const n = res.bits.length + res.pieces.length;
+    hud.hint(`${n} pieces (${(performance.now() - t0).toFixed(0)} ms). Drag the pile with the hand tool.`);
+    setTimeout(() => hud.hint(''), 3500);
+    if (res.bits.length) app.selectBits(res.bits[0]); else if (res.pieces.length) app.selectPiece(res.pieces[0].piece);
+  };
   app.selectPiece = (p) => {
     if (app.selected && app.views.get(app.selected)) app.views.get(app.selected).setHighlight(0);
     app.selected = p;
@@ -180,6 +200,9 @@ async function boot() {
     else if (k === 't') app.tools.select('tongs');
     else if (k === 'p') app.tools.select('probe');
     else if (k === 'k') app.tools.select('knife');
+    else if (k === 's') app.tools.select('spatula');
+    else if (k === 'e') app.tools.select('peeler');
+    else if (k === 'j') app.tools.select('lemon');
     else if (k === 'v') app.setThermal(!app.thermal);
     else if (k === ' ') { e.preventDefault(); app.setSpeed(app.speed ? 0 : 1); }
     else if (k === 'delete' || k === 'backspace') app.removeSelected();
@@ -210,7 +233,15 @@ async function boot() {
       (hud.envHist ||= []).push([world.t, sup === 'pot' ? world.pot.T : world.pan.T]);
       if (hud.envHist.length > 4000) hud.envHist.splice(0, 1000);
     }
-    world.smokeLevel = Math.max(0, Math.min(1, (world.pan.T - (world.pan.oiled ? 204 : 260)) / 60));
+    // smoke: the fat in the pan past its smoke point, or food charring in the pan
+    let charring = 0;
+    for (const p of world.pieces) if (p.support && p.support.kind === 'pan') { const g = p.grid; for (let s = 0; s < g.nSkin; s += 7) if (g.Ts[s] > 230) charring += 0.02; }
+    for (const b of world.bits) if (b.support === 'pan' && b.Ts > 200) charring += 0.01;
+    world.smokeLevel = Math.max(0, Math.min(1, (world.pan.smokePoint ? (world.pan.T - world.pan.smokePoint) / 40 : 0) + charring));
+    // physics for bits (real time), then their instances
+    const awake = world.bits.filter((b) => !b.held && (b.sleep < 0.6 || b.wake));
+    if (awake.length) stepBitPhysics(world, world.bits.filter((b) => !b.held), rdt);
+    app.bitView.sync(false, rdt);
     for (const v of app.views.values()) v.sync(now);
     kitchen.update(world, rdt * app.speed, rdt);
     // probe visual
@@ -270,6 +301,27 @@ async function stageScene(name, app) {
     for (const r of res) faceUp(W, r.piece, r.piece.capNormals[0]);
     W.place(res[0].piece, 'board', [L.board.x - 0.05, L.board.z]); W.place(res[1].piece, 'board', [L.board.x + 0.05, L.board.z]);
     app.stage.setCamera([-0.37, 0.25, 0.3], [-0.37, 0.03, 0.13], 0);
+  } else if (name === 'veg') {
+    // produce cut open on the board, diced onion sweating in the pan
+    W.burners[0].setting = 3;
+    for (let i = 0; i < 300; i++) W.tick(1);
+    const spots = [['onion', -0.52, 0.06], ['tomato', -0.40, 0.06], ['apple', -0.28, 0.06], ['lemon', -0.52, 0.19], ['avocado', -0.38, 0.2], ['strawberry', -0.26, 0.2]];
+    for (const [id, x, z] of spots) {
+      const p = W.add(id); W.place(p, 'board', [x, z]);
+      const b = p.bounds();
+      const res = cutPiece(W, p, meshPiece(p), [0, 0, 1], [(b.lo[0] + b.hi[0]) / 2, 0.03, (b.lo[2] + b.hi[2]) / 2], 0.004);
+      for (const r of res) { faceUp(W, r.piece, r.piece.capNormals[r.piece.capNormals.length - 1]); const v = new FoodView(r.piece, meshPiece(r.piece), app.stage.scene); app.views.set(r.piece, v); }
+      const bb = res[1].piece.bounds(); W.place(res[1].piece, 'board', [x + 0.0, z + 0.045]);
+      W.place(res[0].piece, 'board', [x, z - 0.0]);
+    }
+    const on = W.add('onion'); W.place(on, 'board', [-0.1, 0.25]);
+    applyPreset(W, on, 'dice_m', { noMesh: true });
+    const pan = W.bits.filter((b) => b.foodId === 'onion');
+    pan.forEach((b, i) => { const a = i * 2.4, r = 0.07 * Math.sqrt((i + 0.5) / pan.length); b.pos = [W.pan.x + Math.cos(a) * r, W.pan.surfaceY + 0.02 + (i % 3) * 0.008, W.pan.z + Math.sin(a) * r]; b.support = 'pan'; b.sleep = 0; });
+    for (let i = 0; i < 420; i++) { W.tick(1); if (i % 30 === 0) for (const b of pan) b.stirred = true; }
+    const c = W.add('carrot'); W.place(c, 'board', [-0.35, 0.235]); const cv = new FoodView(c, meshPiece(c), app.stage.scene); app.views.set(c, cv);
+    for (let i = 0; i < 240; i++) W.tick(1); // let the cut apple and avocado brown a little
+    app.stage.setCamera(params.has('pan') ? [0.16, 0.36, 0.2] : params.has('close') ? [-0.4, 0.22, 0.29] : [-0.39, 0.36, 0.36], params.has('pan') ? [0.16, 0.09, -0.04] : params.has('close') ? [-0.4, 0.03, 0.14] : [-0.39, 0.03, 0.13], 0);
   } else if (name === 'kitchen') {
     W.burners[0].setting = 6; W.burners[1].setting = 9; W.pot.T = 97;
     for (let i = 0; i < 400; i++) W.tick(1);

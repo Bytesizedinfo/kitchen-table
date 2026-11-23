@@ -7,7 +7,8 @@ import { qRot, qConj } from '../sim/math.js';
 
 /** Signed distance of a cut piece (rest space). */
 export function cutSDF(piece) {
-  const base = piece.spec.sdf, cuts = piece.cuts || [];
+  const sdf0 = piece.spec.sdf, pd = piece.peelDepth || 0, cuts = piece.cuts || [];
+  const base = pd ? (x, y, z) => sdf0(x, y, z) + pd : sdf0;
   const g = piece.grid;
   // keep only the region near this piece's own cells (separates same-side components)
   const near = dilatedOcc(g);
@@ -39,7 +40,7 @@ function dilatedOcc(g) {
 export function meshPiece(piece) {
   const g = piece.grid, sp = piece.spec;
   const h = sp.meshCell || Math.min(g.dx, g.dy, g.dz);
-  const sdf = piece.cuts && piece.cuts.length ? cutSDF(piece) : sp.sdf;
+  const sdf = (piece.cuts && piece.cuts.length) || piece.peelDepth ? cutSDF(piece) : sp.sdf;
   let lo, hi;
   if (piece.cuts && piece.cuts.length) {
     lo = [g.origin[0] - h, g.origin[1] - h, g.origin[2] - h];
@@ -54,7 +55,7 @@ export function meshPiece(piece) {
   if (cuts.length) {
     for (let v = 0; v < cap.length; v++) {
       const x = m.pos[3 * v], y = m.pos[3 * v + 1], z = m.pos[3 * v + 2];
-      const b = sp.sdf(x, y, z);
+      const b = sp.sdf(x, y, z) + (piece.peelDepth || 0);
       for (const c of cuts) {
         const s = c.n[0] * x + c.n[1] * y + c.n[2] * z - c.d;
         const t = c.side ? -s : s;

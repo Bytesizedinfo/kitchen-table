@@ -11,6 +11,51 @@ export function flipPiece(W, p) {
   W.place(p, kind === 'hand' ? 'board' : kind, [cx, cz]);
 }
 
+/** Peel a piece: remove its peel material (banana, lemon) or a thin outer layer (potato, carrot…).
+ * The exposed flesh can now brown in air. Returns the peel mass removed (kg). */
+export function peelPiece(W, p) {
+  if (p.peeled || !(p.def.peel || p.def.peelMat != null)) return 0;
+  const g = p.grid;
+  const before = p.mass();
+  if (p.def.peelMat != null) {
+    for (let c = 0; c < g.N; c++) if (g.occ[c] && g.mat[c] === p.def.peelMat) { g.occ[c] = 0; g.ms[c] = g.mw[c] = g.mw0[c] = 0; }
+    if (g.frac) for (let c = 0; c < g.N; c++) { g.frac[c * 4 + p.def.peelMat] = 0; if (g.occ[c]) g.frac[c * 4 + g.mat[c]] = Math.max(g.frac[c * 4 + g.mat[c]], 128); }
+    const map = (c) => c;
+    g.buildSkin({ oldGrid: snapshotSkin(g), map });
+    g.computeDist(); g.buildMatCells(p.mats.length);
+    for (let s = 0; s < g.nSkin; s++) g.cut[s] = 1;
+  } else {
+    const V = g.cellVol();
+    for (let s = 0; s < g.nSkin; s++) {
+      const c = g.skinCell[s];
+      const f = Math.min(0.5, (p.def.peel * g.skinArea[s]) / V);
+      g.ms[c] *= 1 - f; g.mw[c] *= 1 - f; g.mw0[c] *= 1 - f; g.skw[s] *= 1 - f; g.skw0[s] *= 1 - f;
+      g.cut[s] = 1; g.brown[s] = 0;
+    }
+  }
+  p.peelDepth = p.def.peel || 0;
+  p.peeled = true;
+  p.geomVersion++;
+  p.initMass -= before - p.mass();
+  p._bcKey = '';
+  const kind = p.support ? p.support.kind : 'board';
+  const b = p.bounds();
+  W.place(p, kind === 'hand' ? 'board' : kind, [(b.lo[0] + b.hi[0]) / 2, (b.lo[2] + b.hi[2]) / 2]);
+  return before - p.mass();
+}
+function snapshotSkin(g) {
+  const o = { skinIdx: Int32Array.from(g.skinIdx), skinMask: Uint8Array.from(g.skinMask), skinFrac: Float32Array.from(g.skinFrac), skinArea: Float32Array.from(g.skinArea) };
+  for (const k of ['Ts', 'skw', 'skw0', 'film', 'brown', 'char', 'enz', 'coat', 'cut']) o[k] = g[k].slice();
+  return o;
+}
+
+/** Coat exposed (cut) surfaces with lemon juice (1) or ascorbic acid (2). */
+export function coatPiece(p, kind) {
+  const g = p.grid;
+  for (let s = 0; s < g.nSkin; s++) if (g.cut[s]) g.coat[s] = Math.max(g.coat[s], kind);
+  p.version++;
+}
+
 /** Turn a piece so a given rest-space direction points up (e.g. show a cut face). */
 export function faceUp(W, p, restDir) {
   const kind = p.support ? p.support.kind : 'board';

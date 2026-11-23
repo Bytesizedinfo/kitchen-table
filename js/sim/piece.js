@@ -47,6 +47,18 @@ export class Piece {
       g.mw[c] = g.mw0[c] = mass * m.xw0;
     }
     for (const m of mats) for (const ps of m.procSpecs) if (!g.proc[ps.id]) g.addProc(ps.id, ps.init ?? 0);
+    // sub-cell material fractions (rendering only): smooth, round boundaries such as a yolk or a pit
+    if (mats.length > 1) {
+      const fr = (g.frac = new Uint8Array(g.N * 4));
+      const q = [0, 0, 0];
+      for (let c = 0; c < g.N; c++) {
+        g.center(c, q);
+        // include empty neighbours of the surface too, so filtering at the edge is right
+        const cnt = [0, 0, 0, 0];
+        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let d = -1; d <= 1; d++) cnt[Math.min(3, spec.mat(q[0] + a * g.dx / 3, q[1] + b * g.dy / 3, q[2] + d * g.dz / 3))]++;
+        for (let i = 0; i < 4; i++) fr[c * 4 + i] = Math.round((cnt[i] / 27) * 255);
+      }
+    }
     g.buildSkin();
     g.computeDist();
     g.buildMatCells(mats.length);
@@ -73,6 +85,9 @@ export class Piece {
     this.label = def.name;
     this.shell = def.kind === 'egg' ? (spec.nominalMass || 0.057) * (spec.shellFrac || 0) : 0;
     this.peeled = false;
+    this.peelDepth = 0;
+    this.splitDose = 0; this.skinSplit = false;
+    this.sleepAcc = 0; this.calm = 0;
     this._bcKey = '';
   }
 
@@ -178,6 +193,12 @@ export class Piece {
     return n ? s / n : NaN;
   }
   updateTrackers(dt) {
+    // tomato-style skins split after a while in boiling water
+    if (this.def.skinSplit && !this.skinSplit) {
+      // time in water at (nearly) boiling counts, as in the blanching guidance
+      if (this.support && this.support.kind === 'pot' && this.support.app && this.support.app.T > 95) this.splitDose += dt;
+      if (this.splitDose >= pv(this.def.skinSplit)) this.skinSplit = true;
+    }
     const core = this.coreT();
     if (core > this.coreMax) this.coreMax = core;
     const kind = this.def.safe;

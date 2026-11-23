@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { surfaceNets } from '../geom/surfacenets.js';
 import { makeFoodMaterial, paletteFor } from './foodmaterial.js';
+import { meshPiece } from '../geom/cutpiece.js';
 
 /** Build a closed mesh for a freshly created piece from its analytic shape. */
 export function meshForPiece(piece) {
@@ -41,7 +42,7 @@ export class FoodView {
   }
   allocTextures() {
     const g = this.piece.grid;
-    this.tex?.dispose(); this.mtex?.dispose();
+    this.tex?.dispose(); this.mtex?.dispose(); this.ftex?.dispose();
     const n = g.N * 4;
     this.sdata = new Uint8Array(n);
     this.mdata = new Uint8Array(n);
@@ -58,6 +59,19 @@ export class FoodView {
     this.mtex = mk(this.mdata);
     const u = this.material.userData.u;
     u.uState.value = this.tex; u.uMat.value = this.mtex;
+    // material fractions (fixed per piece): one-hot from the cell material if the food has no sub-cell data
+    const fd = new Uint8Array(n);
+    for (let c = 0; c < g.N; c++) {
+      if (g.frac) for (let e = 0; e < 4; e++) fd[c * 4 + e] = g.frac[c * 4 + e];
+      else if (g.occ[c]) fd[c * 4 + g.mat[c]] = 255;
+    }
+    if (!g.frac) {
+      // spread one cell outwards so the surface samples the right material
+      const { nx, ny, nz } = g, st = [1, -1, nx, -nx, nx * ny, -nx * ny];
+      for (let c = 0; c < g.N; c++) if (!g.occ[c]) for (let d = 0; d < 6; d++) { const c2 = c + st[d]; if (c2 >= 0 && c2 < g.N && g.occ[c2]) { fd[c * 4 + g.mat[c2]] = 255; break; } }
+    }
+    this.ftex = mk(fd);
+    u.uFrac.value = this.ftex;
     u.uOrigin.value.set(...g.origin);
     u.uSize.value.set(g.nx * g.dx, g.ny * g.dy, g.nz * g.dz);
     u.uDims.value.set(g.nx, g.ny, g.nz);
@@ -82,9 +96,9 @@ export class FoodView {
       const rv = ch.r ? (ch.r.inv ? 1 - ch.r.a[c] : ch.r.a[c]) : 0;
       const gv = ch.g ? (ch.g.inv ? 1 - ch.g.a[c] : ch.g.a[c]) : 0;
       const s = g.skinIdx[c];
-      let br = 0, chr = 0, wet;
+      let br = 0, chr = 0, wet, ez = 0;
       if (s >= 0) {
-        br = g.brown[s]; chr = g.char[s];
+        br = g.brown[s]; chr = g.char[s]; ez = g.enz[s];
         const fr = g.skinFrac[s], dry = g.ms[c] * fr;
         const ratio = g.skw0[s] > 0 ? g.skw[s] / g.skw0[s] : 0;
         wet = g.film[s] > 1e-7 ? 1 : Math.min(1, Math.max(0, (ratio - 0.3) / 0.7)) * 0.6;
@@ -93,7 +107,7 @@ export class FoodView {
         wet = Math.min(1, g.mw0[c] > 0 ? g.mw[c] / g.mw0[c] : 0) * 0.5;
       }
       S[o] = rv * 255; S[o + 1] = gv * 255; S[o + 2] = Math.min(255, br * 63.75); S[o + 3] = Math.min(255, chr * 127.5);
-      M[o] = mi; M[o + 1] = wet * 255; M[o + 2] = Math.max(0, Math.min(255, ((g.T[c] + 20) / 320) * 255)); M[o + 3] = mi === 1 ? 255 : 0;
+      M[o] = mi; M[o + 1] = wet * 255; M[o + 2] = Math.max(0, Math.min(255, ((g.T[c] + 20) / 320) * 255)); M[o + 3] = Math.min(255, ez * 127.5);
       filled[c] = 1;
     }
     // dilate two rings so linear filtering at the surface never blends with empty texels
@@ -124,7 +138,17 @@ export class FoodView {
     const p = this.piece;
     this.mesh.position.set(...p.pos);
     this.mesh.quaternion.set(...p.quat);
-    if (p.geomVersion !== this._geomVersion) { this._geomVersion = p.geomVersion; }
+    if (this._geomVersion === undefined) this._geomVersion = p.geomVersion;
+    if (p.geomVersion !== this._geomVersion) {
+      // shape changed (peeled): re-mesh
+      this._geomVersion = p.geomVersion;
+      this.meshData = meshPiece(p);
+      this.mesh.geometry.dispose();
+      this.mesh.geometry = toGeometry(this.meshData);
+    }
+    const u = this.material.userData.u;
+    u.uPeeled.value = p.peeled ? 1 : 0;
+    u.uSplit.value = p.skinSplit ? 1 : 0;
     if (force || (p.version !== this.uploadedVersion && now - this.lastUpload > 150)) {
       this.upload();
       this.uploadedVersion = p.version;
@@ -137,6 +161,6 @@ export class FoodView {
     this.scene.remove(this.mesh);
     this.mesh.geometry.dispose();
     this.material.dispose();
-    this.tex?.dispose(); this.mtex?.dispose();
+    this.tex?.dispose(); this.mtex?.dispose(); this.ftex?.dispose();
   }
 }

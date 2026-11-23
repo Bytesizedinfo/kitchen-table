@@ -30,7 +30,9 @@ export class Pan {
   }
   level() { return 0; }
   contactH() { return this.oiled || this.pool > 0.0005 ? pv('h_contact_wet') : pv('h_contact_dry'); }
+  smoking() { return this.smokePoint != null && this.T > this.smokePoint; }
   step(dt, Tamb) {
+    if (this.hold != null) { this.T = this.hold; this.foodQ = 0; this.evap = 0; return; } // thermostatic (tests)
     const C = this.mass * this.cp;
     const Tk = this.T + 273.15, Ta = Tamb + 273.15;
     const loss = pv('pan_h_loss') * this.Aloss * (this.T - Tamb) + pv('castiron_eps') * SIG * this.Aloss * (Tk ** 4 - Ta ** 4);

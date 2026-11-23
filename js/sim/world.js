@@ -4,6 +4,7 @@ import { wair } from './heat.js';
 import { Burner, Pan, Pot } from './appliances.js';
 import { Piece } from './piece.js';
 import { LAYOUT } from './layout.js';
+import { stepBitThermal, bitProcSpecs } from './bits.js';
 
 export class World {
   constructor(opts = {}) {
@@ -15,6 +16,7 @@ export class World {
     this.pan = new Pan(this.burners[0]);
     this.pot = new Pot(this.burners[1]);
     this.pieces = [];
+    this.bits = [];
     this.probe = null; // { piece, rest:[x,y,z], T, history:[] }
     this.events = { sizzle: 0, boil: 0 };
     this.listeners = new Set();
@@ -35,7 +37,20 @@ export class World {
     if (this.probe && this.probe.piece === p) this.probe = null;
     this.emit('remove', p);
   }
-  clear() { for (const p of [...this.pieces]) this.remove(p); }
+  clear() { for (const p of [...this.pieces]) this.remove(p); this.removeBits(this.bits.slice()); }
+  addBit(b) { bitProcSpecs(b.mats); this.bits.push(b); this.emit('bits', b.batch); return b; }
+  removeBits(list) {
+    const set = new Set(list);
+    this.bits = this.bits.filter((b) => !set.has(b));
+    if (this.probe && this.probe.bit && set.has(this.probe.bit)) this.probe = null;
+    const batches = new Set(list.map((b) => b.batch));
+    for (const bt of batches) this.emit('bits', bt);
+  }
+  /** Environment for something resting on a support kind (shared by pieces and bits). */
+  envFor(sup, override) {
+    const fake = { support: { kind: sup }, envOverride: override };
+    return this.env(fake);
+  }
 
   /** Place a piece on a support: 'pan' | 'pot' | 'board' | 'table' | 'plate' | 'rest' | 'hand'. */
   place(p, kind, xz) {
@@ -91,11 +106,21 @@ export class World {
   tick(dt) {
     let sizzle = 0;
     for (const p of this.pieces) {
+      const key0 = p._bcKey;
       p.classify(this);
-      const out = { Qcon: 0, Qair: 0, Qwat: 0, Qins: 0, Qoil: 0, evap: 0, latent: 0, evapSens: 0 };
-      const drip = p.tick(this.env(p), dt, out);
-      p.lastOut = out;
+      // a piece in equilibrium with still surroundings sleeps: it is updated every 10 s instead of every tick
       const sup = p.support ? p.support.kind : 'table';
+      const still = sup !== 'pan' && sup !== 'pot' && sup !== 'hand' && p._bcKey === key0 && !p.awakeForce && !p.envOverride;
+      if (still && p.calm > 30) {
+        p.sleepAcc += dt;
+        if (p.sleepAcc < 10) { p.lastOut = null; continue; }
+      }
+      const tdt = still && p.calm > 30 ? p.sleepAcc : dt;
+      p.sleepAcc = 0;
+      const out = { Qcon: 0, Qair: 0, Qwat: 0, Qins: 0, Qoil: 0, evap: 0, latent: 0, evapSens: 0 };
+      const drip = p.tick(this.env(p), tdt, out);
+      p.calm = still && p.grid._dTmax < 0.01 * tdt ? p.calm + 1 : 0;
+      p.lastOut = out;
       if (sup === 'pan') {
         this.pan.foodQ += out.Qcon;
         this.pan.pool += drip;
@@ -103,6 +128,19 @@ export class World {
       } else if (sup === 'pot') {
         this.pot.foodQ += out.Qwat + out.Qcon;
         this.pot.water += drip;
+      }
+    }
+    // bits: two-node thermal model on whatever they rest on
+    if (this.bits.length) {
+      const envCache = {};
+      for (const b of this.bits) {
+        const sup = b.held ? 'hand' : b.support || 'board';
+        const env = envCache[sup] || (envCache[sup] = this.env({ support: { kind: sup } }));
+        if (sup === 'pot' && b.pos[1] > this.pot.level()) { /* floating above water: treat as air */ }
+        const out = { Qcon: 0, Qwat: 0, evap: 0 };
+        stepBitThermal(b, env, dt, out);
+        if (sup === 'pan') { this.pan.foodQ += out.Qcon; sizzle += out.evap; }
+        else if (sup === 'pot') this.pot.foodQ += out.Qwat;
       }
     }
     this.pan.step(dt, this.Tamb);
@@ -120,7 +158,7 @@ export class World {
   }
   updateProbe(dt) {
     const pr = this.probe;
-    const Ttrue = pr.piece.grid.sampleT(pr.rest);
+    const Ttrue = pr.bit ? pr.bit.Tc : pr.piece.grid.sampleT(pr.rest);
     const a = 1 - Math.exp(-dt / pv('probe_tau'));
     pr.T = Ttrue;
     pr.Tshown += (Ttrue - pr.Tshown) * a;

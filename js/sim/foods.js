@@ -3,6 +3,7 @@
 import { steakSDF, eggSDF, potatoSDF, sphereSDF, boxSDF } from './shapes.js';
 import { makeNoise } from './rng.js';
 import { pv } from './params.js';
+import { PRODUCE_MATS, PRODUCE_FOODS } from './produce.js';
 
 // ---- materials -------------------------------------------------------------------------------
 const meatProcs = [
@@ -55,11 +56,14 @@ export const MATERIALS = {
     procs: [
       { id: 'starch', type: 'eq', Tm: 'pot_starch_Tm', w: 'pot_starch_w', tau: 90 },
       { id: 'pectin', type: 'arrh1', kref: 'pectin_k100', Tref: 100, Ea: 'pectin_Ea', init: 1 },
-      { id: 'firm', type: 'arrh1', kref: 'pectin_k100', kmul: 'soften_ratio', Tref: 100, Ea: 'pectin_Ea', init: 1 },
+      { id: 'firm', type: 'arrh1', kref: 'pectin_k100', kmul: 'soften_ratio', Tref: 100, Ea: 'potato_Ea', init: 1 },
+      { id: 'ppo', type: 'arrh1', kref: 'ppo_k78', Tref: 78, Ea: 'ppo_Ea', init: 1 },
     ],
+    enz: 0.8, sugars: { fru: 0.26, glu: 0.31, suc: 0.17 },
     chan: { r: 'starch', g: '1-firm' },
-    look: { c0: [0.93, 0.88, 0.70], c1: [0.94, 0.85, 0.58], c2: [0.95, 0.82, 0.50], skin: [0.58, 0.42, 0.26], rough: 0.5, trans: 0.3, peelNoise: 1 },
+    look: { c0: [0.93, 0.88, 0.70], c1: [0.94, 0.85, 0.58], c2: [0.95, 0.82, 0.50], skin: [0.58, 0.42, 0.26], enzCol: [0.62, 0.50, 0.42], rough: 0.5, trans: 0.3, peelNoise: 1, kind: 2 },
   },
+  ...PRODUCE_MATS,
   test_beef79: { name: 'Beef 79 % water (test)', comp: { water: 0.79, protein: 0.19, fat: 0.01, ash: 0.01 }, procs: [], chan: {}, look: {} },
   // Williams' homogeneous egg: c = 3.7 J/gK, ρ = 1.038 g/cm³, K = 0.54 W/mK
   test_williams: { name: 'Williams egg (test)', fixed: { k: 0.54, rho: 1038, cp: 3700 }, comp: { water: 0.75, protein: 0.25 }, procs: [], chan: {}, look: {} },
@@ -67,8 +71,9 @@ export const MATERIALS = {
 
 // ---- foods -----------------------------------------------------------------------------------
 export const FOODS = {
+  ...PRODUCE_FOODS,
   steak: {
-    name: 'Strip steak', kind: 'meat', safe: 'beef', icon: 'steak',
+    name: 'Strip steak', kind: 'meat', cat: 'meat', safe: 'beef', icon: 'steak',
     mats: ['beef_lean', 'beef_fat'],
     build(o = {}) {
       const th = o.thickness || 0.025, L = o.length || 0.17, W = o.width || 0.105;
@@ -82,7 +87,7 @@ export const FOODS = {
     },
   },
   egg: {
-    name: 'Egg (large, 57 g)', kind: 'egg', safe: 'egg', icon: 'egg',
+    name: 'Egg (large, 57 g)', kind: 'egg', cat: 'dairy', safe: 'egg', icon: 'egg',
     mats: ['egg_white', 'egg_yolk'],
     build(o = {}) {
       const M = o.mass || 57; // grams, whole egg incl. shell
@@ -97,11 +102,11 @@ export const FOODS = {
     },
   },
   potato: {
-    name: 'Potato (russet, ~210 g)', kind: 'veg', safe: null, icon: 'potato',
+    name: 'Potato (russet, ~210 g)', kind: 'veg', cat: 'veg', safe: null, icon: 'potato', peel: 0.0015,
     mats: ['potato'],
     build(o = {}) {
       const noise = makeNoise(o.seed || 7);
-      const rx = 0.056, ry = 0.03, rz = 0.035;
+      const rx = 0.052, ry = 0.029, rz = 0.033;
       return {
         dims: [rx * 2.2, ry * 2.4, rz * 2.6], cell: [0.0025, 0.0025, 0.0025], meshCell: 0.0016,
         sdf: potatoSDF(rx, ry, rz, noise), mat: () => 0, T0: o.T0 ?? pv('Tamb'),

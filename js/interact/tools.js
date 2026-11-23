@@ -2,7 +2,8 @@
 // to the centre) and knife (drag a line to cut). Follows Pore Pressure's select/down/move/up model.
 import * as THREE from 'three';
 import { LAYOUT as L } from '../sim/layout.js';
-import { flipPiece } from '../sim/ops.js';
+import { flipPiece, peelPiece, coatPiece } from '../sim/ops.js';
+import { supportAt } from '../sim/bits.js';
 import { qRot, qConj } from '../sim/math.js';
 
 export const TOOLS = [
@@ -10,10 +11,16 @@ export const TOOLS = [
     svg: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5a1.5 1.5 0 0 1 3 0v8M17 9.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1a7 7 0 0 1-5.6-2.8L3.5 15.6a1.6 1.6 0 0 1 2.4-2.1L8 15.5"/>' },
   { id: 'tongs', name: 'Tongs', key: 'T', tip: 'Tongs: click food to flip it',
     svg: '<path d="M4 20 15 4M8 21 19 5M15 4l2.5-1M19 5l1.5 2M4 20l-1 1M8 21l-1 .5"/>' },
+  { id: 'spatula', name: 'Spatula', key: 'S', tip: 'Spatula: drag through diced food to stir and toss it',
+    svg: '<path d="M14 3h6v8h-6z"/><path d="M17 11 7 21"/>' },
   { id: 'probe', name: 'Probe', key: 'P', tip: 'Thermometer: click food to probe its centre',
     svg: '<path d="M14 4a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M16 9v7"/><path d="M4 20l7-7"/>' },
   { id: 'knife', name: 'Knife', key: 'K', tip: 'Knife: drag a line across food to cut it',
     svg: '<path d="M3 21 15.5 8.5"/><path d="M14 10l6-6a2.8 2.8 0 0 1 0 4l-6 6z"/>' },
+  { id: 'peeler', name: 'Peeler', key: 'E', tip: 'Peeler: click food to peel it (banana and lemon lose their peel)',
+    svg: '<path d="M4 20l6-6"/><path d="M10 14c2-6 6-10 10-11-1 4-5 8-11 10z"/><path d="M13 9l3 3"/>' },
+  { id: 'lemon', name: 'Lemon juice', key: 'J', tip: 'Lemon juice: click cut fruit to slow browning (shift-click: ascorbic acid, stronger)',
+    svg: '<ellipse cx="13" cy="11" rx="7" ry="5"/><path d="M6 11H3M20 11h1M10 17l-1 4M14 17l1 3"/>' },
 ];
 
 export class Tools {
@@ -38,9 +45,13 @@ export class Tools {
   }
   pickFood(e) {
     this.setRay(e);
-    const meshes = [...this.app.views.values()].map((v) => v.mesh);
+    const meshes = [...this.app.views.values()].map((v) => v.mesh).concat(this.app.bitView ? this.app.bitView.meshes() : []);
     const hit = this.ray.intersectObjects(meshes, false)[0];
     if (!hit) return null;
+    if (hit.object.userData.bits) {
+      const bit = hit.object.userData.bits[hit.instanceId];
+      return { bit, point: hit.point.clone(), dir: this.ray.ray.direction.clone() };
+    }
     return { piece: hit.object.userData.piece, point: hit.point.clone(), dir: this.ray.ray.direction.clone() };
   }
   planeHit(y) {
@@ -52,16 +63,51 @@ export class Tools {
     const app = this.app, W = app.world;
     app.audio?.start();
     const hit = this.pickFood(e);
+    if (this.tool === 'knife' && app.knifePreset && app.knifePreset !== 'free') {
+      if (hit && hit.piece) { app.selectPiece(hit.piece); app.applyPreset(hit.piece, app.knifePreset); }
+      return;
+    }
     if (this.tool === 'knife') {
-      if (!hit && !e.shiftKey) { /* allow cutting lines that start off the food */ }
       const r = this.el.getBoundingClientRect();
       this.cut = { x0: e.clientX - r.left, y0: e.clientY - r.top, x1: e.clientX - r.left, y1: e.clientY - r.top, e0: { clientX: e.clientX, clientY: e.clientY } };
       app.stage.controls.enabled = false;
       app.showCutLine(this.cut);
       return;
     }
+    if (this.tool === 'spatula') {
+      this.stir = { last: null };
+      app.stage.controls.enabled = false;
+      this.stirAt(e);
+      return;
+    }
     if (!hit) return;
+    if (hit.bit) {
+      const bits = W.bits.filter((b) => b.batch === hit.bit.batch);
+      if (this.tool === 'hand') {
+        const carryY = 0.17;
+        for (const b of bits) { b.held = true; b.off = [b.pos[0] - hit.point.x, b.pos[2] - hit.point.z]; }
+        this.dragBits = { bits, carryY };
+        app.stage.controls.enabled = false;
+        app.hint('Drop the pile in the pan, the pot, on the board or the plate');
+      } else if (this.tool === 'probe') {
+        W.probe = { bit: hit.bit, piece: null, T: hit.bit.Tc, Tshown: hit.bit.Tc, history: [] };
+        app.onProbeBit?.(hit.bit);
+      } else if (this.tool === 'lemon') {
+        for (const b of bits) b.coat = Math.max(b.coat || 0, e.shiftKey ? 2 : 1);
+        app.hint(e.shiftKey ? 'Ascorbic acid on the pile' : 'Lemon juice on the pile');
+      }
+      app.selectBits?.(hit.bit);
+      return;
+    }
     app.selectPiece(hit.piece);
+    if (this.tool === 'knife' && app.knifePreset && app.knifePreset !== 'free') { app.applyPreset(hit.piece, app.knifePreset); return; }
+    if (this.tool === 'peeler') {
+      const m = peelPiece(W, hit.piece);
+      app.hint(m > 0 ? `Peeled: ${(m * 1000).toFixed(0)} g of peel removed` : 'Nothing to peel');
+      app.audio?.chop();
+      return;
+    }
+    if (this.tool === 'lemon') { coatPiece(hit.piece, e.shiftKey ? 2 : 1); app.hint(e.shiftKey ? 'Ascorbic acid on the cut surfaces' : 'Lemon juice on the cut surfaces'); return; }
     if (this.tool === 'hand') {
       const p = hit.piece;
       const carryY = 0.16;
@@ -92,6 +138,15 @@ export class Tools {
       app.dropPreview(this.dropTarget(hp.x + this.drag.offX, hp.z + this.drag.offZ));
       return;
     }
+    if (this.dragBits) {
+      this.setRay(e);
+      const hp = this.planeHit(this.dragBits.carryY);
+      if (!hp) return;
+      for (const b of this.dragBits.bits) { b.pos[0] = hp.x + b.off[0]; b.pos[2] = hp.z + b.off[1]; b.pos[1] = this.dragBits.carryY; b.vel = [0, 0, 0]; }
+      app.dropPreview(this.dropTarget(hp.x, hp.z));
+      return;
+    }
+    if (this.stir) { this.stirAt(e); return; }
     if (this.cut) {
       const r = this.el.getBoundingClientRect();
       this.cut.x1 = e.clientX - r.left; this.cut.y1 = e.clientY - r.top;
@@ -106,6 +161,28 @@ export class Tools {
   }
   up(e) {
     const app = this.app, W = app.world;
+    if (this.stir) { this.stir = null; app.stage.controls.enabled = true; return; }
+    if (this.dragBits) {
+      const bits = this.dragBits.bits;
+      let cx = 0, cz = 0; for (const b of bits) { cx += b.pos[0]; cz += b.pos[2]; } cx /= bits.length; cz /= bits.length;
+      const t = this.dropTarget(cx, cz);
+      // scatter the pile over the target so it can fall and settle (inside the walls of a pan or pot)
+      const vessel = t.kind === 'pan' ? W.pan : t.kind === 'pot' ? W.pot : null;
+      const [tx, tz] = vessel ? [vessel.x, vessel.z] : t.xz;
+      const R = Math.min(t.kind === 'pan' ? 0.085 : t.kind === 'pot' ? 0.075 : 0.09, 0.012 * Math.sqrt(bits.length));
+      bits.forEach((b, i) => {
+        const a = i * 2.39996, r = R * Math.sqrt((i + 0.5) / bits.length);
+        b.pos[0] = tx + Math.cos(a) * r; b.pos[2] = tz + Math.sin(a) * r; b.pos[1] = 0.12 + (i % 7) * 0.004;
+        b.held = false; b.sleep = 0; b.wake = true; b.vel = [0, 0, 0];
+        b.support = supportAt(W, b.pos[0], b.pos[2]).kind;
+      });
+      if (t.kind === 'pan' && W.pan.T > 120) app.audio?.sizzleBurst();
+      if (t.kind === 'pot') app.audio?.splash();
+      this.dragBits = null;
+      app.dropPreview(null); app.hint('');
+      app.stage.controls.enabled = true;
+      return;
+    }
     if (this.drag) {
       const p = this.drag.piece;
       const b = p.bounds();
@@ -128,6 +205,28 @@ export class Tools {
       app.stage.controls.enabled = true;
       if (Math.hypot(c.x1 - c.x0, c.y1 - c.y0) < 12) return;
       app.cutAlongScreenLine(c);
+    }
+  }
+  /** Spatula: push and toss the bits near the pointer in the direction of the stroke. */
+  stirAt(e) {
+    const W = this.app.world;
+    this.setRay(e);
+    const hp = this.planeHit(W.pan.surfaceY + 0.01) || this.planeHit(0.03);
+    if (!hp) return;
+    const last = this.stir.last;
+    this.stir.last = hp;
+    if (!last) return;
+    const vx = hp.x - last.x, vz = hp.z - last.z;
+    for (const b of W.bits) {
+      const d = Math.hypot(b.pos[0] - hp.x, b.pos[2] - hp.z);
+      if (d > 0.03) continue;
+      b.vel[0] += vx * 25; b.vel[2] += vz * 25; b.vel[1] += 0.25 + Math.random() * 0.2;
+      b.sleep = 0; b.wake = true; b.stirred = true;
+      // a toss shows a different face to the pan
+      const t = Math.random() * Math.PI, s = Math.sin(t / 2);
+      const ax = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5], l = Math.hypot(...ax) || 1;
+      const q2 = [ax[0] / l * s, ax[1] / l * s, ax[2] / l * s, Math.cos(t / 2)], q = b.quat;
+      b.quat = [q2[3] * q[0] + q2[0] * q[3] + q2[1] * q[2] - q2[2] * q[1], q2[3] * q[1] - q2[0] * q[2] + q2[1] * q[3] + q2[2] * q[0], q2[3] * q[2] + q2[0] * q[1] - q2[1] * q[0] + q2[2] * q[3], q2[3] * q[3] - q2[0] * q[0] - q2[1] * q[1] - q2[2] * q[2]];
     }
   }
   /** Where would a piece centred at (x,z) land? */
