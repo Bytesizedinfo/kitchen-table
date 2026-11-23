@@ -58,7 +58,7 @@ export const MATERIALS = {
       { id: 'firm', type: 'arrh1', kref: 'pectin_k100', kmul: 'soften_ratio', Tref: 100, Ea: 'pectin_Ea', init: 1 },
     ],
     chan: { r: 'starch', g: '1-firm' },
-    look: { c0: [0.93, 0.88, 0.70], c1: [0.94, 0.85, 0.58], c2: [0.95, 0.82, 0.50], skin: [0.50, 0.34, 0.20], rough: 0.5, trans: 0.3, peelNoise: 1 },
+    look: { c0: [0.93, 0.88, 0.70], c1: [0.94, 0.85, 0.58], c2: [0.95, 0.82, 0.50], skin: [0.58, 0.42, 0.26], rough: 0.5, trans: 0.3, peelNoise: 1 },
   },
   test_beef79: { name: 'Beef 79 % water (test)', comp: { water: 0.79, protein: 0.19, fat: 0.01, ash: 0.01 }, procs: [], chan: {}, look: {} },
   // Williams' homogeneous egg: c = 3.7 J/gK, ρ = 1.038 g/cm³, K = 0.54 W/mK

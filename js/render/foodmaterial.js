@@ -59,10 +59,9 @@ void foodShade(){
     vec3 sk = mix(uSkin[0], uSkin[1], w1);
     if (kind > 1.5 && kind < 2.5) {
       // russet peel: netted texture and a few eyes
-      float n = kNoise(vRest * 420.0), mottle = kNoise(vRest * 45.0 + 1.3), e = smoothstep(0.86, 0.9, kNoise(vRest * 70.0 + 3.0));
+      float n = kNoise(vRest * 420.0), mottle = kNoise(vRest * 45.0 + 1.3);
       sk *= (0.78 + 0.28 * n) * (0.8 + 0.4 * mottle);
       sk = mix(sk, sk * vec3(1.15, 1.05, 0.85), smoothstep(0.55, 0.75, kNoise(vRest * 160.0)) * 0.5);
-      sk = mix(sk, sk * 0.5, e);
       rough = 0.85;
     } else if (kind > 2.5) {
       sk *= 0.96 + 0.06 * kNoise(vRest * 2600.0);

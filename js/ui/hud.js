@@ -160,6 +160,10 @@ export class Hud {
     this.legendBox.replaceChildren(legend(series.map((s) => ({ name: s.name, color: s.color }))));
   }
   updateStove(W) {
+    // keep the sliders in step with the burners (scenes and tests can set them directly)
+    for (const [ui, b] of [[this.pan, W.burners[0]], [this.pot, W.burners[1]]]) {
+      if (document.activeElement !== ui.range && +ui.range.value !== b.setting) { ui.range.value = b.setting; ui.fl.textContent = flameLabel(b.setting); }
+    }
     this.pan.val.textContent = fmtT(W.pan.T, 0);
     this.pan.st.textContent = W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
     this.pot.val.textContent = fmtT(W.pot.T, 0);
