@@ -59,10 +59,12 @@ export class Piece {
         for (let i = 0; i < 4; i++) fr[c * 4 + i] = Math.round((cnt[i] / 27) * 255);
       }
     }
+    if (def.liquidStart && g.proc.liq) g.proc.liq.fill(1); // e.g. warm jelly mix poured into a mould
     g.buildSkin();
     g.computeDist();
     g.buildMatCells(mats.length);
     const piece = new Piece(foodId, def, spec, mats, g);
+    piece.mould = !!def.mould;
     piece.opts = opts;
     return piece;
   }
@@ -207,8 +209,19 @@ export class Piece {
     const target = this.temper !== 'tempered' && lm < 0.3 ? 1 : 0;
     this.bloom = (this.bloom || 0) + (target - (this.bloom || 0)) * Math.min(1, dt / 600);
   }
+  /** Marshmallow: trapped air expands with temperature (ideal gas); after it has gone gooey hot it deflates on cooling. */
+  trackPuff() {
+    const m = this.mats[0], phi = this.puffPhi ?? (this.puffPhi = m.def.porosity ? pv(m.def.porosity) : 0);
+    if (!phi) return;
+    const T0 = this.puffT0 ?? (this.puffT0 = this.spec.T0 + 273.15);
+    const Tm = this.grid.T.reduce((a, t, c) => (this.grid.occ[c] ? a + t : a), 0) / this.grid.occupiedCount() + 273.15;
+    if (this.procMean('liq') > 0.8) this.deflate = 0.3; // foam walls have gone soft: air escapes once it cools
+    const air = phi * (1 - (this.deflate || 0) * (Tm < T0 + 20 ? 1 : 0));
+    this.puff = Math.cbrt((1 - phi) + air * (Tm / T0));
+  }
   updateTrackers(dt) {
     if (this.mats[0].def.chocolate) this.trackTemper(dt);
+    if (this.mats[0].def.puffs) this.trackPuff();
     // tomato-style skins split after a while in boiling water
     if (this.def.skinSplit && !this.skinSplit) {
       // time in water at (nearly) boiling counts, as in the blanching guidance

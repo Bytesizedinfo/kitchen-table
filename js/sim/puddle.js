@@ -59,6 +59,7 @@ export class Puddle {
     const sp = this.mat.procSpecs.find((s) => s.id === 'liq');
     if (sp && sp.type === 'melt') this.liq = 1 / (1 + Math.exp(-(this.T - sp.Tm) / sp.w));
     else if (sp && sp.type === 'thaw') this.liq = this.T > this.mat.Tf ? 1 : 0.3;
+    else if (sp && sp.type === 'gel') { const melt = 1 / sp.tauMelt / (1 + Math.exp(-(this.T - sp.Tm) / 0.3)), set = 1 / sp.tauSet / (1 + Math.exp(-(sp.Ts - this.T) / 1.0)); const r = melt + set; if (r > 1e-9) { const eq = melt / r; this.liq = eq + (this.liq - eq) * Math.exp(-r * dt); } }
     return { q: qSup, evap: E };
   }
   smoking() { const s = this.mat.def.smoke; return !!s && this.mw < 1e-6 && this.T > pv(s); }
@@ -68,11 +69,15 @@ export class Puddle {
 export function drainPiece(world, p) {
   const g = p.grid, mats = p.mats;
   const liq = g.proc.liq;
-  if (!liq || p.noDrain) return null;
+  if (!liq || p.noDrain || p.mould) return null;
   const sup = p.support ? p.support.kind : 'table';
   if (sup === 'hand') return null;
   let cells = [];
-  for (let s = 0; s < g.nSkin; s++) {
+  if (p.chain) {
+    // a chain melts as a whole once most of it is liquid
+    if (p.procMean('liq') < 0.85) return null;
+    for (let c = 0; c < g.N; c++) if (g.occ[c]) cells.push(c);
+  } else for (let s = 0; s < g.nSkin; s++) {
     const c = g.skinCell[s];
     const m = mats[g.mat[c]];
     if (m.def.flowAt != null && liq[c] >= m.def.flowAt) cells.push(c);

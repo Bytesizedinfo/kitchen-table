@@ -7,6 +7,9 @@ import { flipPiece, faceUp } from './sim/ops.js';
 import { cutPiece, meshPiece } from './geom/cutpiece.js';
 import { applyPreset } from './geom/presets.js';
 import { stepBitPhysics } from './sim/bits.js';
+import { stepWobble } from './sim/wobble.js';
+import { stepChains, splitChain } from './sim/chain.js';
+import { unmould } from './sim/ops.js';
 
 const params = new URLSearchParams(location.search);
 const diag = document.getElementById('diag');
@@ -37,6 +40,7 @@ async function boot() {
   const { Audio } = await import('./audio.js');
   const { BitView } = await import('./render/bitview.js');
   const { PuddleView } = await import('./render/puddleview.js');
+  const { TubeView } = await import('./render/tubeview.js');
 
   const stageEl = document.getElementById('stage');
   const stage = new Stage(stageEl);
@@ -44,6 +48,7 @@ async function boot() {
   const app = { stage, world, views: new Map(), selected: null, speed: 1, thermal: false, audio: new Audio(), ff: null };
   window.__kt = app;
   app.bitView = new BitView(stage.scene);
+  app.TubeView = TubeView;
   app.puddleView = new PuddleView(stage.scene);
   const kitchen = buildKitchen(stage);
   app.kitchen = kitchen;
@@ -56,7 +61,7 @@ async function boot() {
   probeGroup.add(needle, grip); probeGroup.visible = false; stage.scene.add(probeGroup);
 
   const addView = (p, mesh) => {
-    const v = new FoodView(p, mesh || meshPiece(p), stage.scene);
+    const v = p.chain ? new TubeView(p, stage.scene) : new FoodView(p, mesh || meshPiece(p), stage.scene);
     v.setThermal(app.thermal);
     app.views.set(p, v);
     return v;
@@ -68,6 +73,7 @@ async function boot() {
 
   app.spawn = (id, opts) => {
     const p = world.add(id, opts);
+    if (p.chain) p.support = { kind: 'board' };
     // find a free spot on the board
     const spots = [[-0.48, 0.08], [-0.27, 0.08], [-0.48, 0.2], [-0.27, 0.2], [-0.37, 0.14]];
     let spot = spots[0], best = -1;
@@ -133,6 +139,7 @@ async function boot() {
     hud.hint(`Fast-forwarding until the probe reads ${target} °C…`);
   };
   app.flipSelected = () => { if (app.selected) flipPiece(world, app.selected); };
+  app.unmouldSelected = () => { const p = app.selected; if (p && unmould(world, p)) { hud.hint(p.procMean('liq') > 0.3 ? 'Not set yet: it will run.' : 'Turned out of the mould.'); hud.renderItem(p); } };
   app.removeSelected = () => { if (app.selected) world.remove(app.selected); };
   app.showCutFace = () => {
     const p = app.selected;
@@ -173,8 +180,17 @@ async function boot() {
     const u = new THREE.Vector3().subVectors(pts[1], pts[0]); u.y = 0; u.normalize();
     const nW = [-u.z, 0, u.x];
     const pW = [pts[0].x, yCut, pts[0].z];
-    const targets = new Set(hits.map((h) => h.piece));
-    for (const p of targets) doCut(p, nW, pW);
+    const targets = new Set(hits.map((h) => h.piece).filter(Boolean));
+    for (const p of targets) {
+      if (p.chain) {
+        // cut a gummy worm where the blade crosses it
+        const ch = p.chain; let at = -1;
+        for (let i = 0; i < ch.n - 1; i++) { const s0 = (ch.x[i * 3] - pW[0]) * nW[0] + (ch.x[i * 3 + 2] - pW[2]) * nW[2], s1 = (ch.x[i * 3 + 3] - pW[0]) * nW[0] + (ch.x[i * 3 + 5] - pW[2]) * nW[2]; if (s0 * s1 <= 0) { at = i; break; } }
+        if (at >= 0) { const parts = splitChain(world, p, at); for (const q of parts) addView(q); app.audio.chop(); }
+        continue;
+      }
+      doCut(p, nW, pW);
+    }
   };
   app.showCutLine = (c) => {
     const svg = document.getElementById('cutline'), ln = svg.querySelector('line');
@@ -247,6 +263,20 @@ async function boot() {
     if (awake.length) stepBitPhysics(world, world.bits.filter((b) => !b.held), rdt);
     app.bitView.sync(false, rdt);
     app.puddleView.sync(world);
+    // gummy worms: chain physics in real time; tearing splits them
+    if (world.pieces.some((p) => p.chain)) {
+      const torn = stepChains(world, rdt);
+      for (const { piece, at } of torn) { const parts = splitChain(world, piece, at); if (parts) { for (const q of parts) addView(q); app.audio.chop(); hud.hint('It tore!'); setTimeout(() => hud.hint(''), 1500); } }
+    }
+    // jelly wobble driven by how the piece is moved (real time)
+    for (const p of world.pieces) {
+      if (!p.def.wobble) continue;
+      const lp = p._lp || (p._lp = { x: p.pos[0], z: p.pos[2], vx: 0, vz: 0 });
+      const vx = (p.pos[0] - lp.x) / Math.max(1e-3, rdt), vz = (p.pos[2] - lp.z) / Math.max(1e-3, rdt);
+      const ax = Math.max(-60, Math.min(60, (vx - lp.vx) / Math.max(1e-3, rdt))), az = Math.max(-60, Math.min(60, (vz - lp.vz) / Math.max(1e-3, rdt)));
+      lp.x = p.pos[0]; lp.z = p.pos[2]; lp.vx = vx; lp.vz = vz;
+      stepWobble(p, rdt, ax, az);
+    }
     for (const v of app.views.values()) v.sync(now);
     kitchen.update(world, rdt * app.speed, rdt);
     // probe visual
@@ -340,6 +370,16 @@ async function stageScene(name, app) {
     const ic3 = W.add('icecream', { T0: -18 }); W.place(ic3, 'freezer'); mk(ic3);
     for (let i = 0; i < 900; i++) W.tick(1);
     app.stage.setCamera(params.has('pan') ? [0.16, 0.3, 0.2] : [-0.3, 0.5, 0.42], params.has('pan') ? [0.16, 0.09, -0.04] : [-0.36, 0.03, -0.05], 0);
+  } else if (name === 'sweets') {
+    const add = (id, kind, xz, o = {}) => { const p = W.add(id, o); W.place(p, kind, xz); if (p.chain) p.support = { kind }; app.views.set(p, p.chain ? new (app.TubeView)(p, app.stage.scene) : new FoodView(p, meshPiece(p), app.stage.scene)); return p; };
+    const j = add('jelly', 'plate', [-0.37, -0.24], { T0: 4 });
+    add('jelly_mix', 'board', [-0.5, 0.2], { T0: 60 });
+    for (let i = 0; i < 3; i++) add('gummy_worm', 'board', [-0.33 + i * 0.012, 0.06 + i * 0.03]);
+    for (let i = 0; i < 4; i++) add('gummy_bear', 'board', [-0.22 + (i % 2) * 0.03, 0.16 + Math.floor(i / 2) * 0.035]);
+    add('marshmallow', 'board', [-0.52, 0.06]); add('marshmallow', 'board', [-0.47, 0.07]);
+    add('lollipop', 'board', [-0.3, 0.22]);
+    j.wob = { x: 0.012, z: 0.004, vx: 0, vz: 0.1, f: 4.2, H: 0.054 };
+    app.stage.setCamera([-0.36, 0.38, 0.42], [-0.37, 0.02, 0.02], 0);
   } else if (name === 'kitchen') {
     W.burners[0].setting = 6; W.burners[1].setting = 9; W.pot.T = 97;
     for (let i = 0; i < 400; i++) W.tick(1);

@@ -3,6 +3,8 @@ import { pv } from './params.js';
 import { wair } from './heat.js';
 import { Burner, Pan, Pot } from './appliances.js';
 import { Piece } from './piece.js';
+import { FOODS } from './foods.js';
+import { makeChainPiece } from './chain.js';
 import { LAYOUT } from './layout.js';
 import { stepBitThermal, bitProcSpecs } from './bits.js';
 import { Puddle, drainPiece } from './puddle.js';
@@ -27,7 +29,8 @@ export class World {
   emit(type, data) { for (const fn of this.listeners) fn(type, data); }
 
   add(foodId, opts = {}) {
-    const p = Piece.create(foodId, opts);
+    const def = FOODS[foodId];
+    const p = def && def.chain ? makeChainPiece(foodId, def, opts) : Piece.create(foodId, opts);
     this.pieces.push(p);
     this.emit('add', p);
     return p;
@@ -89,8 +92,8 @@ export class World {
     // centre the piece's bounds over x,z
     if (kind !== 'hand') {
       const b = p.bounds();
-      p.pos[0] += x - (b.lo[0] + b.hi[0]) / 2;
-      p.pos[2] += z - (b.lo[2] + b.hi[2]) / 2;
+      const dx = x - (b.lo[0] + b.hi[0]) / 2, dz = z - (b.lo[2] + b.hi[2]) / 2;
+      if (p.translate) p.translate(dx, dz); else { p.pos[0] += dx; p.pos[2] += dz; }
       p.restOn(y);
     }
     p.support = { kind, app, y };
@@ -116,7 +119,7 @@ export class World {
     }
     else if (sup === 'fridge' || sup === 'freezer') {
       const T = pv(sup === 'fridge' ? 'fridge_T' : 'freezer_T'), h = pv('h_fridge');
-      e.air = { h, T, Trad: T, eps: pv('eps_food'), w: wair(T, sup === 'fridge' ? 0.6 : 0.8) };
+      e.air = { h, T, Trad: T, eps: pv('eps_food'), w: wair(T, sup === 'fridge' ? 0.85 : 0.8) };
       e.ins = { h: h * 1.5, T };
     }
     if (p.envOverride) Object.assign(e, p.envOverride(e));

@@ -12,7 +12,7 @@ function table(spec, dt) {
   const key = JSON.stringify(spec) + '|' + dt;
   let t = tables.get(key);
   if (t) return t;
-  if (spec.type === 'chill' || spec.type === 'melt' || spec.type === 'thaw') { t = { a: null, b: null, floor: -1e9 }; tables.set(key, t); return t; }
+  if (spec.type === 'chill' || spec.type === 'melt' || spec.type === 'thaw' || spec.type === 'gel') { t = { a: null, b: null, floor: -1e9 }; tables.set(key, t); return t; }
   const a = new Float32Array(NT), b = new Float32Array(NT);
   let floor = 1e9;
   for (let i = 0; i < NT; i++) {
@@ -38,7 +38,7 @@ function table(spec, dt) {
 export function resolveProcs(list) {
   return list.map((p) => {
     const o = { ...p };
-    for (const k of ['Tm', 'w', 'tau', 'kref', 'Ea', 'Tref', 'kmul', 'Tc', 'days']) if (typeof o[k] === 'string') o[k] = pv(o[k]);
+    for (const k of ['Tm', 'w', 'tau', 'kref', 'Ea', 'Tref', 'kmul', 'Tc', 'days', 'Ts', 'tauMelt', 'tauSet']) if (typeof o[k] === 'string') o[k] = pv(o[k]);
     if (o.kmul) { o.kref *= o.kmul; delete o.kmul; }
     return o;
   });
@@ -68,6 +68,17 @@ export function processStep(piece, dt) {
       } else if (spec.type === 'melt') {
         // reversible equilibrium liquid fraction (fat melting, cheese softening)
         for (let q = 0; q < cells.length; q++) { const c = cells[q]; arr[c] = 1 / (1 + Math.exp(-(T[c] - spec.Tm) / spec.w)); }
+      } else if (spec.type === 'gel') {
+        // gelatin: liquid fraction melts quickly above Tm, sets slowly below Ts (hysteresis in between)
+        const km = 1 / spec.tauMelt, ks = 1 / spec.tauSet;
+        for (let q = 0; q < cells.length; q++) {
+          const c = cells[q], t = T[c];
+          // metastable between Ts and Tm: a set gel stays set, a liquid stays liquid
+          const melt = km / (1 + Math.exp(-(t - spec.Tm) / 0.3)), set = ks / (1 + Math.exp(-(spec.Ts - t) / 1.0));
+          const r = melt + set; if (r < 1e-9) continue;
+          const eq = melt / r;
+          arr[c] = eq + (arr[c] - eq) * Math.exp(-r * dt);
+        }
       } else if (spec.type === 'thaw') {
         // liquid fraction of a frozen food from its ice fraction (ice cream)
         const r = 1 - m.rb;

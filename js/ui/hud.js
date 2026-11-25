@@ -198,6 +198,7 @@ export class Hud {
     const row = (k) => { const dd = el('dd', {}, '—'); dl.append(el('dt', {}, k), dd); return dd; };
     this.itemRows = { where: row('On'), core: row('Centre'), coldest: row('Coldest point'), surf: row('Surface'), done: row('Doneness'), safe: row('USDA safety'), mass: row('Weight'), brown: row('Browning'), state: row('Frozen / melted') };
     const acts = el('div', { class: 'btnrow' },
+      p.mould ? el('button', { class: 'tbtn', onclick: () => this.app.unmouldSelected() }, 'Unmould') : null,
       el('button', { class: 'tbtn', onclick: () => this.app.flipSelected() }, 'Flip'),
       el('button', { class: 'tbtn', onclick: () => this.app.showCutFace() }, 'Show cut face'),
       el('button', { class: 'tbtn', onclick: () => this.app.halveSelected() }, 'Cut in half'),
@@ -225,7 +226,8 @@ export class Hud {
     const g = p.grid; let fz = 0, wsum = 0;
     for (let c = 0; c < g.N; c += 3) if (g.occ[c]) { const m = p.mats[g.mat[c]]; const fi = g.T[c] < m.Tf ? Math.max(0, (1 - m.rb) * (1 - m.Tf / g.T[c])) : 0; fz += fi * g.mw[c]; wsum += g.mw[c]; }
     const fzp = wsum > 0 ? (fz / wsum) * 100 : 0, liq = g.proc.liq ? p.procMean('liq') * 100 : null;
-    r.state.textContent = fzp > 0.5 ? `${fzp.toFixed(0)} % of water frozen` : liq != null ? `${liq.toFixed(0)} % melted${p.temper && p.temper !== 'tempered' ? ' (temper lost)' : ''}` : 'no';
+    const gelT = p.mats[0].def.gelatin;
+    r.state.textContent = fzp > 0.5 ? `${fzp.toFixed(0)} % of water frozen` : liq != null ? (gelT ? (liq > 80 ? 'liquid' : liq > 20 ? `setting (${(100 - liq).toFixed(0)} % set)` : 'set') + (p.wob && p.wob.f ? ` · wobbles at ${p.wob.f.toFixed(1)} Hz` : '') : `${liq.toFixed(0)} % melted${p.temper && p.temper !== 'tempered' ? ' (temper lost)' : ''}`) : 'no';
   }
   updateProbe(W) {
     const pr = W.probe;

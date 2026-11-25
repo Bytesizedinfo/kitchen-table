@@ -140,6 +140,9 @@ export class FoodView {
     const p = this.piece;
     this.mesh.position.set(...p.pos);
     this.mesh.quaternion.set(...p.quat);
+    const s = p.puff || 1;
+    this.mesh.scale.setScalar(s);
+    if (s !== 1) this.mesh.position.y += (s - 1) * 0.0125;
     if (this._geomVersion === undefined) this._geomVersion = p.geomVersion;
     if (p.geomVersion !== this._geomVersion) {
       // shape changed (peeled): re-mesh
@@ -149,6 +152,25 @@ export class FoodView {
       this.mesh.geometry = toGeometry(this.meshData);
     }
     const u = this.material.userData.u;
+    // jelly wobble: horizontal shear growing with height, expressed in the piece's own (rest) frame
+    if (p.wob) {
+      const cq = [-p.quat[0], -p.quat[1], -p.quat[2], p.quat[3]];
+      const rot = (v) => { const [x, y, z, w] = cq; const ix = w * v[0] + y * v[2] - z * v[1], iy = w * v[1] + z * v[0] - x * v[2], iz = w * v[2] + x * v[1] - y * v[0], iw = -x * v[0] - y * v[1] - z * v[2]; return [ix * w + iw * -x + iy * -z - iz * -y, iy * w + iw * -y + iz * -x - ix * -z, iz * w + iw * -z + ix * -y - iy * -x]; };
+      const up = rot([0, 1, 0]), sh = rot([p.wob.x, 0, p.wob.z]);
+      const g = p.grid; let lo = 1e9;
+      for (const cx of [0, 1]) for (const cy of [0, 1]) for (const cz of [0, 1]) { const q = [g.origin[0] + cx * g.nx * g.dx, g.origin[1] + cy * g.ny * g.dy, g.origin[2] + cz * g.nz * g.dz]; lo = Math.min(lo, q[0] * up[0] + q[1] * up[1] + q[2] * up[2]); }
+      u.uWob.value.set(...sh); u.uWobUp.value.set(...up); u.uWobBase.value = lo + g.dy; u.uWobH.value = p.wob.H || 0.05;
+    }
+    // glass mould around a jelly that is still in it
+    if (p.mould && !this.mould) {
+      const g = p.grid, R = 0.057, H = 0.06;
+      const prof = []; for (let i = 0; i <= 16; i++) { const a = (i / 16) * Math.PI / 2; prof.push(new THREE.Vector2(R * Math.sin(a) + 0.002, -H / 2 - 0.003 + (H + 0.004) * (1 - Math.cos(a)) * 0.95)); }
+      prof.push(new THREE.Vector2(R + 0.004, H / 2 + 0.004));
+      this.mould = new THREE.Mesh(new THREE.LatheGeometry(prof, 48), new THREE.MeshPhysicalMaterial({ color: 0xdfeef3, roughness: 0.05, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
+      this.mould.renderOrder = 7;
+      this.mesh.add(this.mould);
+      void g;
+    } else if (!p.mould && this.mould) { this.mesh.remove(this.mould); this.mould.geometry.dispose(); this.mould = null; }
     u.uPeeled.value = p.peeled ? 1 : 0;
     u.uSplit.value = p.skinSplit ? 1 : 0;
     u.uBloom.value = p.bloom || 0;

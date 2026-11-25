@@ -44,6 +44,26 @@ Generated from `js/sim/params.js` (`node tools/sources.mjs > SOURCES.md`).
 | mozzarella starts to flow (G′ = G″) ≈53 °C | `53 °C` | sourced | [Ma et al. 2014 J. Food Sci. — cheese flow (mozzarella ≈53, cheddar ≈59 °C), blistering](https://onlinelibrary.wiley.com/doi/abs/10.1111/1750-3841.12540) |
 | cheddar starts to flow ≈59 °C | `59 °C` | sourced | [Ma et al. 2014 J. Food Sci. — cheese flow (mozzarella ≈53, cheddar ≈59 °C), blistering](https://onlinelibrary.wiley.com/doi/abs/10.1111/1750-3841.12540) |
 | width of the softening transition | `2.5 °C` | calibrated | [Ma et al. 2014 J. Food Sci. — cheese flow (mozzarella ≈53, cheddar ≈59 °C), blistering](https://onlinelibrary.wiley.com/doi/abs/10.1111/1750-3841.12540) |
+| gelatin gel Young modulus per % gelatin (6.5/10.7/17 kPa at 4/6/8 %) | `1625 Pa` | sourced | [arXiv 2308.10662 — Young modulus of 250-Bloom gelatin gels 4–8 %](https://arxiv.org/abs/2308.10662) |
+| time constant of a gel melting once above its melting point | `60 s` | calibrated | [TA Instruments — gelatin gel: melts ≈28–30 °C (3 % DSC), gels ≈22–24 °C (G′/G″ crossover)](https://www.tainstruments.com/pdf/literature/TA410.pdf) |
+| jelly dessert gelatin (1 envelope per 500 mL ≈1.4 %, firm ≈1.9 %) | `1.6 %` | sourced | [Knox — 1 envelope (7 g) sets 2 cups (500 mL)](https://knoxgelatine.com/basics_Bot.htm) |
+| gelatin gel melts ≈28–30 °C (3 % gel); dessert strength at the low end | `28 °C` | sourced | [TA Instruments — gelatin gel: melts ≈28–30 °C (3 % DSC), gels ≈22–24 °C (G′/G″ crossover)](https://www.tainstruments.com/pdf/literature/TA410.pdf) |
+| gelatin gels on cooling ≈22–24 °C; melting ≈5 °C above setting | `22 °C` | sourced | [TA Instruments — gelatin gel: melts ≈28–30 °C (3 % DSC), gels ≈22–24 °C (G′/G″ crossover)](https://www.tainstruments.com/pdf/literature/TA410.pdf) |
+| gel-network build-up time constant (sets in a fridge in 2–4 h) | `2400 s` | calibrated | [Jell-O — refrigerate 4 h until firm (2 h for small cups)](https://www.kraftheinz.com/jell-o/products/00043000200100-grape-gelatin-dessert-mix) |
+| gummy candy gelatin 7–9 % | `8 %` | sourced | [US patent 11490634 — gummy candy gelatin 7–9 % (225–250 Bloom)](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11490634) |
+| gummy softens / melts (melting point rises with gelatin concentration) | `36 °C` | calibrated | [Int. J. Food Properties — gelling/melting temperature rise with gelatin concentration](https://informahealthcare.com/doi/abs/10.1080/10942910601128895) |
+| gummy sets again ≈5 °C below where it melts | `30 °C` | calibrated | [Gelita — gelatin melting point ≈5 °C above setting point](https://gelita.com/en/node/75) |
+| gummy re-setting time constant | `1800 s` | calibrated | — |
+| how far a resting sticky gummy node can be pulled per 1/600 s before it slides | `0.0004 m` | calibrated | — |
+| gummy chain stretch compliance (XPBD, per unit node mass) | `0.00005 ` | calibrated | — |
+| gummy chain bending compliance | `0.00002 ` | calibrated | — |
+| gummy tears when a segment is stretched 2.4× (no source found) | `2.4 ` | calibrated | — |
+| damping ratio of a gelatin jelly wobble | `0.07 ` | calibrated | — |
+| marshmallow air fraction (density 0.5–0.7 g/mL vs ≈1.45 solid) | `0.58 ` | sourced | [Ergun, Lietha & Hartel 2010 — moisture and sugar in candy (gummies, marshmallow, hard candy Tg)](https://talcottlab.tamu.edu/wp-content/uploads/sites/108/2019/01/Moistuer-and-Sugar-in-Shelf-Life.pdf) |
+| marshmallow gelatin foam goes soft and gooey | `45 °C` | calibrated | — |
+| marshmallow firms again on cooling | `35 °C` | calibrated | [Gelita — gelatin melting point ≈5 °C above setting point](https://gelita.com/en/node/75) |
+| hard candy glass transition 26–41 °C (1–3 % water): sticky above | `35 °C` | sourced | [Ergun, Lietha & Hartel 2010 — moisture and sugar in candy (gummies, marshmallow, hard candy Tg)](https://talcottlab.tamu.edu/wp-content/uploads/sites/108/2019/01/Moistuer-and-Sugar-in-Shelf-Life.pdf) |
+| sugar glass flows like a syrup well above its glass transition | `95 °C` | calibrated | [Exploratorium — sugar syrup stages (thread 110 °C … hard crack 149–154 °C, caramel 160–177 °C)](https://annex.exploratorium.edu/cooking/candy/sugar-stages.html) |
 | all-purpose burner 12,000 BTU/h ≈ 3.5 kW | `3500 W` | sourced | [Maytag — Gas range BTU ratings (simmer 500–2,000; standard 8,000–12,000; high 12,000–18,000 BTU/h)](https://www.maytag.com/blog/kitchen/gas-range-btu.html) |
 | simmer ≈ 500 BTU/h ≈ 0.15 kW | `150 W` | sourced | [Maytag — Gas range BTU ratings (simmer 500–2,000; standard 8,000–12,000; high 12,000–18,000 BTU/h)](https://www.maytag.com/blog/kitchen/gas-range-btu.html) |
 | fraction of gas heat reaching the pan (≈40 %) | `0.4 ` | sourced | [BuildingGreen (LBNL/EPRI) — cooktop efficiency: gas ≈40 %, electric ≈74 %, induction ≈84 %](https://www.buildinggreen.com/node/7193) |

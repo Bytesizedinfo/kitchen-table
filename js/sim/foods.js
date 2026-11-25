@@ -5,6 +5,7 @@ import { makeNoise } from './rng.js';
 import { pv } from './params.js';
 import { PRODUCE_MATS, PRODUCE_FOODS } from './produce.js';
 import { DAIRY_MATS, DAIRY_FOODS } from './dairy.js';
+import { SWEET_MATS, SWEET_FOODS } from './sweets.js';
 
 // ---- materials -------------------------------------------------------------------------------
 const meatProcs = [
@@ -66,6 +67,7 @@ export const MATERIALS = {
   },
   ...PRODUCE_MATS,
   ...DAIRY_MATS,
+  ...SWEET_MATS,
   test_beef79: { name: 'Beef 79 % water (test)', comp: { water: 0.79, protein: 0.19, fat: 0.01, ash: 0.01 }, procs: [], chan: {}, look: {} },
   // Williams' homogeneous egg: c = 3.7 J/gK, ρ = 1.038 g/cm³, K = 0.54 W/mK
   test_williams: { name: 'Williams egg (test)', fixed: { k: 0.54, rho: 1038, cp: 3700 }, comp: { water: 0.75, protein: 0.25 }, procs: [], chan: {}, look: {} },
@@ -75,6 +77,7 @@ export const MATERIALS = {
 export const FOODS = {
   ...PRODUCE_FOODS,
   ...DAIRY_FOODS,
+  ...SWEET_FOODS,
   steak: {
     name: 'Strip steak', kind: 'meat', cat: 'meat', safe: 'beef', icon: 'steak', storeT: 4,
     mats: ['beef_lean', 'beef_fat'],

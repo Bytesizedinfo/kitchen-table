@@ -92,6 +92,17 @@ void foodShade(){
     }
   } else if (kind == 8.0) {
     if (mi == 1) col = mix(col, uC0[0], smoothstep(0.5, 1.0, kNoise(vRest * vec3(900.0, 90.0, 900.0))) * 0.5);
+  } else if (kind == 19.0) {
+    // gelatin: clear, slightly brighter where thin, tiny bubbles
+    col *= 0.92 + 0.12 * smoothstep(0.85, 1.0, kNoise(vRest * 700.0));
+    // jelly is wet-glassy; gummies have a sugar-dusted, satin surface (material roughness)
+    rough = pr.y + 0.1 * kNoise(vRest * 2500.0);
+  } else if (kind == 20.0) {
+    col *= 0.96 + 0.05 * kNoise(vRest * 1200.0);
+  } else if (kind == 21.0) {
+    // sugar glass: clear and glassy; goes tacky (wet-looking) above its glass transition
+    rough = mix(0.03, 0.01, smoothstep(0.0, 1.0, st.g));
+    col *= 0.9 + 0.15 * smoothstep(0.7, 1.0, kNoise(vRest * 500.0));
   } else if (kind == 11.0) {
     col *= 0.95 + 0.07 * kNoise(vRest * vec3(80.0, 900.0, 900.0));
   }
@@ -157,21 +168,22 @@ export function makeFoodMaterial(palette) {
     uOrigin: { value: new THREE.Vector3() }, uSize: { value: new THREE.Vector3(1, 1, 1) }, uDims: { value: new THREE.Vector3(1, 1, 1) },
     uC0: { value: palette.c0 }, uC1: { value: palette.c1 }, uC2: { value: palette.c2 }, uSkin: { value: palette.skin }, uEnz: { value: palette.enz },
     uProps: { value: palette.props },
+    uWob: { value: new THREE.Vector3() }, uWobUp: { value: new THREE.Vector3(0, 1, 0) }, uWobBase: { value: 0 }, uWobH: { value: 1 },
     uThermal: { value: 0 }, uPeeled: { value: 0 }, uHighlight: { value: 0 }, uSplit: { value: 0 }, uBloom: { value: 0 }, uBlister: { value: 0 }, uRingC: { value: new THREE.Vector3(...(palette.ringC || [0, 0, 0])) },
   };
   mat.userData.u = u;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aCap;\nvarying vec3 vRest;\nvarying float vCap;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRest = position; vCap = aCap;');
+      .replace('#include <common>', '#include <common>\nattribute float aCap;\n#ifdef USE_AREST\nattribute vec3 aRest;\n#endif\nvarying vec3 vRest;\nvarying float vCap;\nuniform vec3 uWob; uniform vec3 uWobUp; uniform float uWobBase; uniform float uWobH;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_AREST\nvRest = aRest;\n#else\nvRest = position;\n#endif\nvCap = aCap;\n{ float hf = clamp((dot(position, uWobUp) - uWobBase) / max(uWobH, 1e-4), 0.0, 1.0); transformed += uWob * hf * hf; }');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
       .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'foodShade();\nvec4 diffuseColor = vec4( gFoodCol, opacity );')
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = gFoodRough;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += gFoodCol * gFoodGlow * 0.12;');
   };
-  mat.customProgramCacheKey = () => 'food-v5';
+  mat.customProgramCacheKey = () => 'food-v6';
   return mat;
 }
 

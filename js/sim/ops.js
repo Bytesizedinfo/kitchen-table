@@ -49,6 +49,15 @@ function snapshotSkin(g) {
   return o;
 }
 
+/** Turn a set jelly out of its mould onto whatever it is on (upside down, dome up). */
+export function unmould(W, p) {
+  if (!p.mould) return false;
+  p.mould = false;
+  flipPiece(W, p);
+  p.geomVersion++;
+  return true;
+}
+
 /** Coat exposed (cut) surfaces with lemon juice (1) or ascorbic acid (2). */
 export function coatPiece(p, kind) {
   const g = p.grid;

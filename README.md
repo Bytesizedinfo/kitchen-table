@@ -26,6 +26,11 @@ A realistic 3D food preparation simulator in the browser. Heat really moves thro
 - Butter, dark and milk chocolate, vanilla ice cream, cheddar and mozzarella. Melted food runs off into puddles that can set again: butter foams, turns to brown butter and smokes; ice cream drips; chocolate melts at its Form V point and blooms if it sets without tempering.
 - Pantry items start "as stored" (fridge, freezer or room), or at a temperature you pick.
 
+## Phase 2c: jellies, gummies & sweets
+
+- Jelly dessert that wobbles at the frequency its gelatin stiffness gives (≈4 Hz for a 5 cm jelly), melts at 28–30 °C and sets again below 22 °C. Poke it with the hand. Make your own: warm jelly mix in a glass mould sets in the fridge in 2–4 h; unmould it too soon and it runs.
+- Gummy worms as soft chains: grab one end and pull to stretch it until it tears, cut it with the knife, melt it in a warm pan. Gummy bears, marshmallows (trapped air expands as they warm; they deflate after going gooey), and lollipops that turn tacky above their glass transition.
+
 ## The science
 
 Every number is in [SOURCES.md](SOURCES.md) (also in the app under **Sources**), tagged as sourced, calibrated or constant. Tests in `js/test/tests.js` check the simulator against exact heat-conduction solutions and against the sourced behaviours (Williams' boiled egg, egg proteins at 64 °C, surfaces held below boiling while wet, pectin kinetics, USDA holds, steak doneness and cooking loss).

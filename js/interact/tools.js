@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { LAYOUT as L } from '../sim/layout.js';
 import { flipPiece, peelPiece, coatPiece } from '../sim/ops.js';
 import { supportAt } from '../sim/bits.js';
+import { pokeWobble } from '../sim/wobble.js';
 import { qRot, qConj } from '../sim/math.js';
 
 export const TOOLS = [
@@ -108,11 +109,20 @@ export class Tools {
       return;
     }
     if (this.tool === 'lemon') { coatPiece(hit.piece, e.shiftKey ? 2 : 1); app.hint(e.shiftKey ? 'Ascorbic acid on the cut surfaces' : 'Lemon juice on the cut surfaces'); return; }
+    if (this.tool === 'hand' && hit.piece.chain) {
+      // grab the nearest node of a gummy worm and pull it
+      const p = hit.piece, i = p.nearestNode([hit.point.x, hit.point.y, hit.point.z]);
+      p.chain.pin = i; p.chain.target = [hit.point.x, hit.point.y + 0.01, hit.point.z];
+      this.grabChain = { piece: p, y: hit.point.y + 0.03 };
+      app.stage.controls.enabled = false;
+      app.hint('Pull to stretch it; let go to drop it');
+      return;
+    }
     if (this.tool === 'hand') {
       const p = hit.piece;
       const carryY = 0.16;
       const b = p.bounds();
-      this.drag = { piece: p, offX: (b.lo[0] + b.hi[0]) / 2 - hit.point.x, offZ: (b.lo[2] + b.hi[2]) / 2 - hit.point.z, carryY, from: p.support ? p.support.kind : 'board' };
+      this.drag = { piece: p, offX: (b.lo[0] + b.hi[0]) / 2 - hit.point.x, offZ: (b.lo[2] + b.hi[2]) / 2 - hit.point.z, carryY, from: p.support ? p.support.kind : 'board', sx: e.clientX, sy: e.clientY, pos0: p.pos.slice(), quat0: p.quat.slice(), dir: [hit.dir.x, hit.dir.z] };
       W.place(p, 'hand');
       p.restOn(carryY);
       app.stage.controls.enabled = false;
@@ -146,6 +156,12 @@ export class Tools {
       app.dropPreview(this.dropTarget(hp.x, hp.z));
       return;
     }
+    if (this.grabChain) {
+      this.setRay(e);
+      const hp = this.planeHit(this.grabChain.y);
+      if (hp) this.grabChain.piece.chain.target = [hp.x, this.grabChain.y, hp.z];
+      return;
+    }
     if (this.stir) { this.stirAt(e); return; }
     if (this.cut) {
       const r = this.el.getBoundingClientRect();
@@ -162,6 +178,11 @@ export class Tools {
   up(e) {
     const app = this.app, W = app.world;
     if (this.stir) { this.stir = null; app.stage.controls.enabled = true; return; }
+    if (this.grabChain) {
+      const p = this.grabChain.piece; p.chain.pin = -1;
+      if (W.pieces.includes(p)) { const b = p.bounds(); p.support = { kind: supportAt(W, (b.lo[0] + b.hi[0]) / 2, (b.lo[2] + b.hi[2]) / 2).kind }; p._bcKey = ''; }
+      this.grabChain = null; app.stage.controls.enabled = true; app.hint(''); return;
+    }
     if (this.dragBits) {
       const bits = this.dragBits.bits;
       let cx = 0, cz = 0; for (const b of bits) { cx += b.pos[0]; cz += b.pos[2]; } cx /= bits.length; cz /= bits.length;
@@ -182,6 +203,13 @@ export class Tools {
       app.dropPreview(null); app.hint('');
       app.stage.controls.enabled = true;
       return;
+    }
+    if (this.drag && this.drag.piece.def.wobble && Math.hypot(e.clientX - this.drag.sx, e.clientY - this.drag.sy) < 4) {
+      // just a poke: put it back and set it wobbling
+      const p = this.drag.piece; p.pos = this.drag.pos0; p.quat = this.drag.quat0;
+      W.place(p, this.drag.from, [p.bounds().lo[0] / 2 + p.bounds().hi[0] / 2, p.bounds().lo[2] / 2 + p.bounds().hi[2] / 2]);
+      pokeWobble(p, this.drag.dir[0], this.drag.dir[1]);
+      this.drag = null; app.dropPreview(null); app.hint(''); app.stage.controls.enabled = true; app.selectPiece(p); return;
     }
     if (this.drag) {
       const p = this.drag.piece;
@@ -244,6 +272,7 @@ export class Tools {
   /** Push the probe in along the view ray and stop at the deepest point (thermal centre). */
   insertProbe(hit) {
     const p = hit.piece, g = p.grid;
+    if (p.chain) { const r = p.toRest([hit.point.x, hit.point.y, hit.point.z]); this.app.world.insertProbe(p, r); this.app.onProbe(p, r, [r[0], 1, 0]); return; }
     const o = p.toRest([hit.point.x, hit.point.y, hit.point.z]);
     const d = qRot(qConj(p.quat), [hit.dir.x, hit.dir.y, hit.dir.z]);
     let best = null, bestD = -1;
