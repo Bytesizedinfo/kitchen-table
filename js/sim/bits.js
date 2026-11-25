@@ -145,6 +145,8 @@ export function supportAt(world, x, z) {
   if (Math.hypot(x - P.x, z - P.z) < L.pan.rTop) return { y: P.surfaceY, kind: 'pan', cx: P.x, cz: P.z, wallR: L.pan.r };
   if (Math.hypot(x - Q.x, z - Q.z) < L.pot.r + 0.005) return { y: Q.bottomY, kind: 'pot', cx: Q.x, cz: Q.z, wallR: L.pot.r };
   if (Math.hypot(x - L.plate.x, z - L.plate.z) < L.plate.r * 0.85) return { y: 0.012, kind: 'plate' };
+  const F = L.fridge;
+  if (Math.abs(x - F.x) < F.w / 2 && Math.abs(z - F.z) < F.d / 2) return { y: F.floor, kind: x < F.x ? 'freezer' : 'fridge' };
   if (Math.abs(x - L.board.x) < L.board.w / 2 && Math.abs(z - L.board.z) < L.board.d / 2) return { y: L.board.h, kind: 'board' };
   return { y: 0, kind: 'table' };
 }

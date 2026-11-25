@@ -15,7 +15,7 @@ uniform highp sampler3D uFrac;
 uniform vec3 uOrigin; uniform vec3 uSize; uniform vec3 uDims;
 uniform vec3 uC0[4]; uniform vec3 uC1[4]; uniform vec3 uC2[4]; uniform vec3 uSkin[4]; uniform vec4 uEnz[4];
 uniform vec4 uProps[4]; // x skin on, y roughness, z translucency, w texture kind
-uniform float uThermal; uniform float uPeeled; uniform float uHighlight; uniform float uSplit; uniform vec3 uRingC;
+uniform float uThermal; uniform float uPeeled; uniform float uHighlight; uniform float uSplit; uniform vec3 uRingC; uniform float uBloom; uniform float uBlister;
 varying vec3 vRest; varying float vCap;
 float kHash(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float kNoise(vec3 x){
@@ -119,6 +119,12 @@ void foodShade(){
     else if (kind == 13.0) { sk *= 0.9 + 0.15 * kNoise(vRest * vec3(1800.0, 120.0, 1800.0)); rough = 0.5; }
     col = sk;
   }
+  // chocolate set without tempering: dull with grey-white streaks (fat bloom)
+  if (kind == 16.0 && uBloom > 0.0) {
+    float sk = smoothstep(0.4, 0.9, kNoise(vRest * vec3(300.0, 900.0, 120.0))) * 0.7 + 0.3 * kNoise(vRest * 1500.0);
+    col = mix(col, uC2[0] + kLin(vec3(0.33, 0.30, 0.27)), uBloom * sk * 0.9);
+    rough = mix(rough, 0.8, uBloom);
+  }
   // banana peel darkens with chilling injury (second channel on the peel material)
   if (kind == 10.0 && mi == 1 && outer && uPeeled < 0.5) col = mix(col, kLin(vec3(0.22, 0.14, 0.07)), smoothstep(0.3, 1.5, st.g) * (0.6 + 0.4 * kNoise(vRest * 300.0)));
   // Maillard browning and caramelisation (mottled where contact was uneven), then charring
@@ -128,8 +134,13 @@ void foodShade(){
   col = mix(col, kLin(vec3(0.52, 0.29, 0.13)), smoothstep(0.35, 1.2, b));
   col = mix(col, kLin(vec3(0.33, 0.16, 0.07)), smoothstep(1.2, 2.4, b));
   col = mix(col, kLin(vec3(0.17, 0.09, 0.045)), smoothstep(2.4, 4.0, b) * 0.9);
+  // mozzarella blisters: steam bubbles scorch in spots once the top browns
+  if (uBlister > 0.5 && b > 0.3) { float bl = smoothstep(0.28, 0.12, kCell(vRest * 140.0)); col = mix(col, kLin(vec3(0.30, 0.15, 0.06)), bl * smoothstep(0.3, 1.2, b)); }
   float ch = st.a * 2.0;
   col = mix(col, kLin(vec3(0.07, 0.06, 0.055)), smoothstep(0.15, 1.1, ch));
+  // frozen surfaces: a thin white frost
+  float Tc = mt.b * 360.0 - 40.0;
+  if (outer && Tc < -1.0) { float fr = smoothstep(-1.0, -10.0, Tc) * (0.35 + 0.25 * kNoise(vRest * 1800.0)); col = mix(col, kLin(vec3(0.93, 0.95, 0.97)), fr); rough = mix(rough, 0.85, fr); }
   float wet = mt.g;
   rough = mix(rough, 0.32, wet * 0.85) + (kind == 1.0 ? 0.0 : 0.25 * smoothstep(0.3, 1.5, b) * (1.0 - wet));
   gFoodGlow = pr.z;
@@ -146,7 +157,7 @@ export function makeFoodMaterial(palette) {
     uOrigin: { value: new THREE.Vector3() }, uSize: { value: new THREE.Vector3(1, 1, 1) }, uDims: { value: new THREE.Vector3(1, 1, 1) },
     uC0: { value: palette.c0 }, uC1: { value: palette.c1 }, uC2: { value: palette.c2 }, uSkin: { value: palette.skin }, uEnz: { value: palette.enz },
     uProps: { value: palette.props },
-    uThermal: { value: 0 }, uPeeled: { value: 0 }, uHighlight: { value: 0 }, uSplit: { value: 0 }, uRingC: { value: new THREE.Vector3(...(palette.ringC || [0, 0, 0])) },
+    uThermal: { value: 0 }, uPeeled: { value: 0 }, uHighlight: { value: 0 }, uSplit: { value: 0 }, uBloom: { value: 0 }, uBlister: { value: 0 }, uRingC: { value: new THREE.Vector3(...(palette.ringC || [0, 0, 0])) },
   };
   mat.userData.u = u;
   mat.onBeforeCompile = (sh) => {
@@ -160,7 +171,7 @@ export function makeFoodMaterial(palette) {
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = gFoodRough;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += gFoodCol * gFoodGlow * 0.12;');
   };
-  mat.customProgramCacheKey = () => 'food-v4';
+  mat.customProgramCacheKey = () => 'food-v5';
   return mat;
 }
 

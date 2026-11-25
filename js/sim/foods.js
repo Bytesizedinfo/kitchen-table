@@ -4,6 +4,7 @@ import { steakSDF, eggSDF, potatoSDF, sphereSDF, boxSDF } from './shapes.js';
 import { makeNoise } from './rng.js';
 import { pv } from './params.js';
 import { PRODUCE_MATS, PRODUCE_FOODS } from './produce.js';
+import { DAIRY_MATS, DAIRY_FOODS } from './dairy.js';
 
 // ---- materials -------------------------------------------------------------------------------
 const meatProcs = [
@@ -14,7 +15,7 @@ const meatProcs = [
 ];
 export const MATERIALS = {
   beef_lean: {
-    name: 'Beef (lean, strip loin)',
+    name: 'Beef (lean, strip loin)', Tf: 'Tf_beef',
     comp: { water: 0.716, protein: 0.224, fat: 0.048, ash: 0.012 },
     // Choi–Okos over-predicts lean beef k; scale to the measured 0.43–0.48 W/m·K (79 % water, 7 °C)
     kMeasured: { k: 0.455, T: 7, comp: { water: 0.79, protein: 0.19, fat: 0.01, ash: 0.01 }, src: 'etb_food_k' },
@@ -24,7 +25,7 @@ export const MATERIALS = {
     look: { c0: [0.40, 0.045, 0.06], c1: [0.80, 0.30, 0.31], c2: [0.53, 0.39, 0.30], skin: null, rough: 0.55, trans: 0.25, fiber: 1 },
   },
   beef_fat: {
-    name: 'Beef fat',
+    name: 'Beef fat', Tf: 'Tf_beef',
     comp: { water: 0.2, fat: 0.75, protein: 0.05 },
     procs: [{ id: 'render', type: 'eq', Tm: 52, w: 6, tau: 90 }],
     chan: { r: 'render', g: null },
@@ -64,6 +65,7 @@ export const MATERIALS = {
     look: { c0: [0.93, 0.88, 0.70], c1: [0.94, 0.85, 0.58], c2: [0.95, 0.82, 0.50], skin: [0.58, 0.42, 0.26], enzCol: [0.62, 0.50, 0.42], rough: 0.5, trans: 0.3, peelNoise: 1, kind: 2 },
   },
   ...PRODUCE_MATS,
+  ...DAIRY_MATS,
   test_beef79: { name: 'Beef 79 % water (test)', comp: { water: 0.79, protein: 0.19, fat: 0.01, ash: 0.01 }, procs: [], chan: {}, look: {} },
   // Williams' homogeneous egg: c = 3.7 J/gK, ρ = 1.038 g/cm³, K = 0.54 W/mK
   test_williams: { name: 'Williams egg (test)', fixed: { k: 0.54, rho: 1038, cp: 3700 }, comp: { water: 0.75, protein: 0.25 }, procs: [], chan: {}, look: {} },
@@ -72,8 +74,9 @@ export const MATERIALS = {
 // ---- foods -----------------------------------------------------------------------------------
 export const FOODS = {
   ...PRODUCE_FOODS,
+  ...DAIRY_FOODS,
   steak: {
-    name: 'Strip steak', kind: 'meat', cat: 'meat', safe: 'beef', icon: 'steak',
+    name: 'Strip steak', kind: 'meat', cat: 'meat', safe: 'beef', icon: 'steak', storeT: 4,
     mats: ['beef_lean', 'beef_fat'],
     build(o = {}) {
       const th = o.thickness || 0.025, L = o.length || 0.17, W = o.width || 0.105;
@@ -87,7 +90,7 @@ export const FOODS = {
     },
   },
   egg: {
-    name: 'Egg (large, 57 g)', kind: 'egg', cat: 'dairy', safe: 'egg', icon: 'egg',
+    name: 'Egg (large, 57 g)', kind: 'egg', cat: 'dairy', safe: 'egg', icon: 'egg', storeT: 4,
     mats: ['egg_white', 'egg_yolk'],
     build(o = {}) {
       const M = o.mass || 57; // grams, whole egg incl. shell

@@ -236,6 +236,7 @@ export class Tools {
     if (dp < L.pan.rTop + 0.02) { const k = Math.min(1, (L.pan.r - 0.035) / Math.max(dp, 1e-6)); return { kind: 'pan', xz: [W.pan.x + (x - W.pan.x) * k, W.pan.z + (z - W.pan.z) * k] }; }
     if (dq < L.pot.r + 0.02) { const k = Math.min(1, (L.pot.r - 0.03) / Math.max(dq, 1e-6)); return { kind: 'pot', xz: [W.pot.x + (x - W.pot.x) * k, W.pot.z + (z - W.pot.z) * k] }; }
     if (Math.hypot(x - L.plate.x, z - L.plate.z) < L.plate.r) return { kind: 'plate', xz: [x, z] };
+    if (Math.abs(x - L.fridge.x) < L.fridge.w / 2 && Math.abs(z - L.fridge.z) < L.fridge.d / 2) return { kind: x < L.fridge.x ? 'freezer' : 'fridge', xz: [x, z] };
     if (Math.abs(x - L.board.x) < L.board.w / 2 && Math.abs(z - L.board.z) < L.board.d / 2) return { kind: 'board', xz: [x, z] };
     const tx = Math.max(-L.table.w / 2 + 0.05, Math.min(L.table.w / 2 - 0.05, x)), tz = Math.max(-L.table.d / 2 + 0.05, Math.min(L.table.d / 2 - 0.05, z));
     return { kind: 'table', xz: [tx, tz] };

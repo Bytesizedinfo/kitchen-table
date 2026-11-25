@@ -4,7 +4,7 @@
 //           with time constant tau, never decreasing (protein denaturation, starch gelatinization)
 //   arrh1 – first-order Arrhenius decay of a native fraction x: x *= exp(−k(T)·dt)  (pectin breakdown)
 import { pv } from './params.js';
-import { T_MIN, NT } from './props.js';
+import { T_MIN, NT, frozenFrac } from './props.js';
 
 const tables = new Map();
 
@@ -12,7 +12,7 @@ function table(spec, dt) {
   const key = JSON.stringify(spec) + '|' + dt;
   let t = tables.get(key);
   if (t) return t;
-  if (spec.type === 'chill') { t = { a: null, b: null, floor: -1e9 }; tables.set(key, t); return t; }
+  if (spec.type === 'chill' || spec.type === 'melt' || spec.type === 'thaw') { t = { a: null, b: null, floor: -1e9 }; tables.set(key, t); return t; }
   const a = new Float32Array(NT), b = new Float32Array(NT);
   let floor = 1e9;
   for (let i = 0; i < NT; i++) {
@@ -65,6 +65,13 @@ export function processStep(piece, dt) {
           const Deq = A[ti];
           if (Deq > arr[c]) arr[c] += (Deq - arr[c]) * B[ti];
         }
+      } else if (spec.type === 'melt') {
+        // reversible equilibrium liquid fraction (fat melting, cheese softening)
+        for (let q = 0; q < cells.length; q++) { const c = cells[q]; arr[c] = 1 / (1 + Math.exp(-(T[c] - spec.Tm) / spec.w)); }
+      } else if (spec.type === 'thaw') {
+        // liquid fraction of a frozen food from its ice fraction (ice cream)
+        const r = 1 - m.rb;
+        for (let q = 0; q < cells.length; q++) { const c = cells[q]; arr[c] = 1 - frozenFrac(T[c], m.Tf, m.rb) / r; }
       } else if (spec.type === 'chill') {
         // chilling injury dose: accumulates below Tc, reaching 1 after `days` at 5 °C (irreversible)
         const rate = 1 / (spec.days * 86400 * (spec.Tc - 5));

@@ -13,6 +13,7 @@ import { cutPiece } from '../geom/cutpiece.js';
 import { surfaceNets } from '../geom/surfacenets.js';
 import { mulberry32 } from '../sim/rng.js';
 import { TESTS_2A } from './tests2a.js';
+import { TESTS_2B } from './tests2b.js';
 export { flipPiece };
 
 // ---- helpers ----
@@ -407,7 +408,7 @@ export const TESTS = [
 
 export async function runAll(write, filter) {
   const results = [];
-  for (const t of [...TESTS, ...TESTS_2A]) {
+  for (const t of [...TESTS, ...TESTS_2A, ...TESTS_2B]) {
     if (filter && !filter.test(t.name)) continue;
     const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
     let r;

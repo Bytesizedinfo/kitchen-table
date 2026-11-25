@@ -5,6 +5,7 @@ import { Burner, Pan, Pot } from './appliances.js';
 import { Piece } from './piece.js';
 import { LAYOUT } from './layout.js';
 import { stepBitThermal, bitProcSpecs } from './bits.js';
+import { Puddle, drainPiece } from './puddle.js';
 
 export class World {
   constructor(opts = {}) {
@@ -17,6 +18,7 @@ export class World {
     this.pot = new Pot(this.burners[1]);
     this.pieces = [];
     this.bits = [];
+    this.puddles = [];
     this.probe = null; // { piece, rest:[x,y,z], T, history:[] }
     this.events = { sizzle: 0, boil: 0 };
     this.listeners = new Set();
@@ -37,7 +39,22 @@ export class World {
     if (this.probe && this.probe.piece === p) this.probe = null;
     this.emit('remove', p);
   }
-  clear() { for (const p of [...this.pieces]) this.remove(p); this.removeBits(this.bits.slice()); }
+  clear() { for (const p of [...this.pieces]) this.remove(p); this.removeBits(this.bits.slice()); this.puddles = []; this.emit('puddles'); }
+  /** The puddle a melted food joins (same food and support, close by), or a new one. */
+  puddleAt(kind, x, z, mat, foodId) {
+    let best = null;
+    for (const p of this.puddles) if (p.kind === kind && p.foodId === foodId && Math.hypot(p.x - x, p.z - z) < p.radius() + 0.03) best = p;
+    if (best) return best;
+    const y = this.supportY(kind);
+    best = new Puddle(kind, x, z, y, mat, foodId);
+    this.puddles.push(best);
+    this.emit('puddles');
+    return best;
+  }
+  supportY(kind) {
+    const L = LAYOUT;
+    return kind === 'pan' ? this.pan.surfaceY : kind === 'pot' ? this.pot.bottomY : kind === 'board' ? L.board.h : kind === 'plate' ? L.plate.h - 0.006 : kind === 'fridge' || kind === 'freezer' ? L.fridge.floor : 0;
+  }
   addBit(b) { bitProcSpecs(b.mats); this.bits.push(b); this.emit('bits', b.batch); return b; }
   removeBits(list) {
     const set = new Set(list);
@@ -61,6 +78,13 @@ export class World {
     else if (kind === 'board') { y = L.board.h; if (!xz) { x = L.board.x; z = L.board.z; } }
     else if (kind === 'plate') { y = L.plate.h; if (!xz) { x = L.plate.x; z = L.plate.z; } }
     else if (kind === 'rest') { y = L.rest.h; if (!xz) { x = L.rest.x; z = L.rest.z; } }
+    else if (kind === 'fridge' || kind === 'freezer') {
+      // left half is the freezer, right half the fridge
+      const F = L.fridge, x0 = kind === 'freezer' ? F.x - F.w / 4 : F.x + F.w / 4;
+      y = F.floor;
+      if (!xz) { x = x0; z = F.z; }
+      x = Math.max(x0 - F.w / 4 + 0.03, Math.min(x0 + F.w / 4 - 0.03, x)); z = Math.max(F.z - F.d / 2 + 0.03, Math.min(F.z + F.d / 2 - 0.03, z));
+    }
     else if (kind === 'hand') { y = p.pos[1]; }
     // centre the piece's bounds over x,z
     if (kind !== 'hand') {
@@ -89,6 +113,11 @@ export class World {
       e.wat = { h: pot.waterH(), T: pot.T };
       e.con = { h: pot.waterH(), T: pot.T };
       if (pot.T > 60) { air.T = Math.max(Tamb, pot.T - 15); air.w = Math.min(0.5, wair(Math.min(pot.T, 99), 0.9)); }
+    }
+    else if (sup === 'fridge' || sup === 'freezer') {
+      const T = pv(sup === 'fridge' ? 'fridge_T' : 'freezer_T'), h = pv('h_fridge');
+      e.air = { h, T, Trad: T, eps: pv('eps_food'), w: wair(T, sup === 'fridge' ? 0.6 : 0.8) };
+      e.ins = { h: h * 1.5, T };
     }
     if (p.envOverride) Object.assign(e, p.envOverride(e));
     return e;
@@ -143,6 +172,26 @@ export class World {
         else if (sup === 'pot') this.pot.foodQ += out.Qwat;
       }
     }
+    // melting: surface cells past their flow point run off into puddles (checked every 2 s)
+    for (const p of [...this.pieces]) {
+      if (!p.grid.proc.liq) continue;
+      p._drainAcc = (p._drainAcc || 0) + dt;
+      if (p._drainAcc < 2) continue;
+      p._drainAcc = 0;
+      const r = drainPiece(this, p);
+      if (r && !r.gone) { const b = p.bounds(); this.place(p, p.support ? p.support.kind : 'board', [(b.lo[0] + b.hi[0]) / 2, (b.lo[2] + b.hi[2]) / 2]); this.emit('melt', p); }
+    }
+    // puddles exchange heat with whatever they lie on; butter in the pan becomes the pan's fat
+    let butterInPan = null;
+    for (const pd of this.puddles) {
+      const env = this.env({ support: { kind: pd.kind } });
+      const r = pd.step(env, dt);
+      if (pd.kind === 'pan') { this.pan.foodQ += r.q; sizzle += r.evap; if (pd.mat.def.smoke) butterInPan = pd; }
+    }
+    if (butterInPan) { this.pan.oiled = true; this.pan.butter = butterInPan; if (this.pan.oil === 'none' || this.pan.oil == null) this.pan.smokePoint = pv('smoke_butter'); } else this.pan.butter = null;
+    const nP = this.puddles.length;
+    this.puddles = this.puddles.filter((pd) => pd.mass() > 1e-5);
+    if (this.puddles.length !== nP) this.emit('puddles');
     this.pan.step(dt, this.Tamb);
     this.pot.step(dt, this.Tamb);
     this.events.sizzle = sizzle + this.pan.evap;

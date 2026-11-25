@@ -68,8 +68,9 @@ export class Hud {
     const srch = el('input', { type: 'search', placeholder: 'Search food', 'aria-label': 'Search food', class: 'psearch' });
     srch.oninput = () => { this.search = srch.value.trim().toLowerCase(); this.renderPantry(); };
     const temp = el('div', { class: 'seg small', role: 'group', 'aria-label': 'Starting temperature' });
-    const tb = (lbl, v) => el('button', { onclick: () => { this.fromFridge = v; [...temp.children].forEach((x, i) => x.classList.toggle('on', (i === 1) === v)); } }, lbl);
-    temp.append(tb('Room 22 °C', false), tb('Fridge 4 °C', true));
+    this.startT = 'typical';
+    const tb = (lbl, v, tip) => el('button', { title: tip, onclick: (e) => { this.startT = v; [...temp.children].forEach((x) => x.classList.toggle('on', x === e.currentTarget)); } }, lbl);
+    temp.append(tb('As stored', 'typical', 'Where you would normally keep it'), tb('Room', 22, 'Room temperature, 22 °C'), tb('Fridge', 4, 'From the fridge, 4 °C'), tb('Freezer', -18, 'Frozen, −18 °C'));
     temp.children[0].classList.add('on');
     const clear = el('button', { class: 'tbtn', title: 'Remove everything from the table', onclick: () => this.app.clearTable() }, 'Clear table');
     this.pantryItems = el('div', { class: 'pitems' });
@@ -83,7 +84,7 @@ export class Hud {
     const items = Object.entries(FOODS).filter(([id, f]) => f.cat && (this.search ? f.name.toLowerCase().includes(this.search) : f.cat === this.cat));
     for (const [id, f] of items) {
       const [name, size] = f.name.split(' (');
-      const b = el('button', { class: 'food', title: `Put ${name.toLowerCase()} on the board`, onclick: () => this.app.spawn(id, { T0: this.fromFridge ? 4 : 22 }) },
+      const b = el('button', { class: 'food', title: `Put ${name.toLowerCase()} on the board`, onclick: () => this.app.spawn(id, { T0: this.startT === 'typical' ? f.storeT ?? (f.cat === 'meat' || f.cat === 'dairy' ? 4 : 22) : this.startT }) },
         el('span', { class: 'sw', style: `background:${SW[id] || '#888'}` }), el('span', {}, name, el('small', {}, size ? '(' + size : '')));
       box.append(b);
     }
@@ -108,6 +109,7 @@ export class Hud {
       ['Stove', [0.3, 0.45, 0.42], [0.3, 0.08, -0.04]],
       ['Pan', [0.16, 0.3, 0.22], [0.16, 0.09, -0.04]],
       ['Plate', [-0.37, 0.35, 0.12], [-0.37, 0.02, -0.24]],
+      ['Fridge', [-0.62, 0.36, 0.32], [-0.66, 0.12, -0.25]],
     ]) v.append(el('button', { onclick: () => this.app.stage.setCamera(pos, target) }, name));
   }
   buildStove() {
@@ -194,7 +196,7 @@ export class Hud {
     this.itemTitle = el('div', { style: 'font-weight:600;margin-bottom:6px' }, p.label);
     const dl = el('dl', { class: 'kv' });
     const row = (k) => { const dd = el('dd', {}, '—'); dl.append(el('dt', {}, k), dd); return dd; };
-    this.itemRows = { where: row('On'), core: row('Centre'), coldest: row('Coldest point'), surf: row('Surface'), done: row('Doneness'), safe: row('USDA safety'), mass: row('Weight'), brown: row('Browning') };
+    this.itemRows = { where: row('On'), core: row('Centre'), coldest: row('Coldest point'), surf: row('Surface'), done: row('Doneness'), safe: row('USDA safety'), mass: row('Weight'), brown: row('Browning'), state: row('Frozen / melted') };
     const acts = el('div', { class: 'btnrow' },
       el('button', { class: 'tbtn', onclick: () => this.app.flipSelected() }, 'Flip'),
       el('button', { class: 'tbtn', onclick: () => this.app.showCutFace() }, 'Show cut face'),
@@ -205,7 +207,7 @@ export class Hud {
   updateItem(p, W) {
     if (!p || !this.itemRows) return;
     const r = this.itemRows;
-    const where = { pan: 'the pan', pot: 'the pot', board: 'the board', plate: 'the plate', table: 'the table', hand: 'your hand' };
+    const where = { pan: 'the pan', pot: 'the pot', board: 'the board', plate: 'the plate', table: 'the table', hand: 'your hand', fridge: 'the fridge', freezer: 'the freezer' };
     r.where.textContent = where[p.support ? p.support.kind : 'table'];
     r.core.textContent = fmtT(p.coreT());
     r.coldest.textContent = fmtT(p.minT());
@@ -219,6 +221,11 @@ export class Hud {
     r.mass.textContent = `${m.toFixed(0)} g (−${Math.max(0, (1 - m / m0) * 100).toFixed(1)} %)`;
     const b = p.skinMean(p.grid.brown);
     r.brown.textContent = b < 0.05 ? 'none' : b < 0.4 ? 'light' : b < 1.2 ? 'golden-brown' : b < 2.5 ? 'deep brown' : 'very dark';
+    // frozen water share and melted share
+    const g = p.grid; let fz = 0, wsum = 0;
+    for (let c = 0; c < g.N; c += 3) if (g.occ[c]) { const m = p.mats[g.mat[c]]; const fi = g.T[c] < m.Tf ? Math.max(0, (1 - m.rb) * (1 - m.Tf / g.T[c])) : 0; fz += fi * g.mw[c]; wsum += g.mw[c]; }
+    const fzp = wsum > 0 ? (fz / wsum) * 100 : 0, liq = g.proc.liq ? p.procMean('liq') * 100 : null;
+    r.state.textContent = fzp > 0.5 ? `${fzp.toFixed(0)} % of water frozen` : liq != null ? `${liq.toFixed(0)} % melted${p.temper && p.temper !== 'tempered' ? ' (temper lost)' : ''}` : 'no';
   }
   updateProbe(W) {
     const pr = W.probe;
@@ -244,7 +251,8 @@ export class Hud {
       if (document.activeElement !== ui.range && +ui.range.value !== b.setting) { ui.range.value = b.setting; ui.fl.textContent = flameLabel(b.setting); }
     }
     this.pan.val.textContent = fmtT(W.pan.T, 0);
-    this.pan.st.textContent = W.pan.smokePoint && W.pan.T > W.pan.smokePoint ? 'oil smoking!' : W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
+    const bp = W.pan.butter;
+    this.pan.st.textContent = W.pan.smokePoint && W.pan.T > W.pan.smokePoint ? 'fat smoking!' : bp ? (bp.foam > 0.05 ? 'butter foaming' : bp.brown > 0.4 ? 'brown butter' : 'melted butter') : W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
     this.pot.val.textContent = fmtT(W.pot.T, 0);
     const P = W.pot;
     this.pot.st.textContent = P.water < 0.05 ? 'boiled dry!' : P.boiling ? `rolling boil · ${(P.water).toFixed(2)} L` : P.T > 85 ? `simmering · ${(P.water).toFixed(2)} L` : `${(P.water).toFixed(2)} L`;

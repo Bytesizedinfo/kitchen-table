@@ -21,8 +21,40 @@ export function cutSDF(piece) {
     }
     const i = Math.floor((x - g.origin[0]) / g.dx), j = Math.floor((y - g.origin[1]) / g.dy), k = Math.floor((z - g.origin[2]) / g.dz);
     if (i < 0 || j < 0 || k < 0 || i >= g.nx || j >= g.ny || k >= g.nz || !near[i + g.nx * (j + g.ny * k)]) d = Math.max(d, 1e-4);
+    if (piece.melted) d = Math.max(d, occSDF(g, x, y, z));
     return d;
   };
+}
+/** Signed distance-like field from the trilinear-filtered occupancy (melted, rounded shapes). */
+function occSDF(g, x, y, z) {
+  const occ = g._occBlur || blurOcc(g);
+  const fx = (x - g.origin[0]) / g.dx - 0.5, fy = (y - g.origin[1]) / g.dy - 0.5, fz = (z - g.origin[2]) / g.dz - 0.5;
+  const i0 = Math.floor(fx), j0 = Math.floor(fy), k0 = Math.floor(fz);
+  let o = 0;
+  for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) for (let c = 0; c < 2; c++) {
+    const i = i0 + a, j = j0 + b, k = k0 + c;
+    if (i < 0 || j < 0 || k < 0 || i >= g.nx || j >= g.ny || k >= g.nz) continue;
+    o += occ[i + g.nx * (j + g.ny * k)] * (a ? fx - i0 : 1 - (fx - i0)) * (b ? fy - j0 : 1 - (fy - j0)) * (c ? fz - k0 : 1 - (fz - k0));
+  }
+  return (0.5 - o) * 2 * Math.min(g.dx, g.dy, g.dz);
+}
+/** Occupancy smoothed by two 6-neighbour averaging passes (rounded melted shapes, no voxel terraces). */
+function blurOcc(g) {
+  const { nx, ny, nz, N } = g;
+  let a = new Float32Array(N); for (let c = 0; c < N; c++) a[c] = g.occ[c];
+  for (let pass = 0; pass < 2; pass++) {
+    const b = new Float32Array(N);
+    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const c = i + nx * (j + ny * k); let s = 2 * a[c], w = 2;
+      if (i > 0) { s += a[c - 1]; w++; } if (i < nx - 1) { s += a[c + 1]; w++; }
+      if (j > 0) { s += a[c - nx]; w++; } if (j < ny - 1) { s += a[c + nx]; w++; }
+      if (k > 0) { s += a[c - nx * ny]; w++; } if (k < nz - 1) { s += a[c + nx * ny]; w++; }
+      b[c] = s / w;
+    }
+    a = b;
+  }
+  g._occBlur = a;
+  return a;
 }
 function dilatedOcc(g) {
   const out = new Uint8Array(g.N);
@@ -39,10 +71,11 @@ function dilatedOcc(g) {
 /** Mesh a (possibly cut) piece; aCap = 1 on vertices that lie on a cut face. */
 export function meshPiece(piece) {
   const g = piece.grid, sp = piece.spec;
+  g._occBlur = null; // recompute the smoothed occupancy for this shape
   const h = sp.meshCell || Math.min(g.dx, g.dy, g.dz);
-  const sdf = (piece.cuts && piece.cuts.length) || piece.peelDepth ? cutSDF(piece) : sp.sdf;
+  const sdf = (piece.cuts && piece.cuts.length) || piece.peelDepth || piece.melted ? cutSDF(piece) : sp.sdf;
   let lo, hi;
-  if (piece.cuts && piece.cuts.length) {
+  if ((piece.cuts && piece.cuts.length) || piece.melted) {
     lo = [g.origin[0] - h, g.origin[1] - h, g.origin[2] - h];
     hi = [g.origin[0] + g.nx * g.dx + h, g.origin[1] + g.ny * g.dy + h, g.origin[2] + g.nz * g.dz + h];
   } else {

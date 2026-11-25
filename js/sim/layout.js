@@ -9,5 +9,6 @@ export const LAYOUT = {
   pot: { r: 0.095, h: 0.15, base: 0.004 },
   plate: { x: -0.37, z: -0.24, r: 0.13, h: 0.018 },
   rest: { x: -0.06, z: 0.27, w: 0.2, d: 0.16, h: 0.004 }, // resting rack/tray
+  fridge: { x: -0.665, z: -0.25, w: 0.36, d: 0.3, h: 0.42, floor: 0.03 }, // two glass doors: freezer (left), fridge (right)
 };
 export const BURNER_TOP = LAYOUT.cooktop.h + LAYOUT.cooktop.grate; // pan base sits here

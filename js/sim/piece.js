@@ -192,7 +192,23 @@ export class Piece {
     for (let c = 0; c < g.N; c++) if (g.occ[c] && (mi == null || g.mat[c] === mi)) { n++; s += arr[c]; }
     return n ? s / n : NaN;
   }
+  /** Chocolate: melting destroys the temper; seeding at 26–27 °C then working at 30–32 °C restores it. */
+  trackTemper(dt) {
+    const g = this.grid, liq = g.proc.liq;
+    let lmax = 0, lsum = 0, n = 0, Ts = 0;
+    for (let c = 0; c < g.N; c++) if (g.occ[c]) { const l = liq[c]; if (l > lmax) lmax = l; lsum += l; Ts += g.T[c]; n++; }
+    const Tm = Ts / n, lm = lsum / n;
+    if (!this.temper) this.temper = 'tempered';
+    const st = this.temper;
+    if (lmax > 0.9 && Tm > 33) this.temper = 'melted';
+    else if (st === 'melted' && Tm <= 27.5) this.temper = 'seeded';
+    else if (st === 'seeded' && Tm >= 29.5 && Tm <= 32.5) this.temper = 'tempered';
+    // untempered chocolate that has set shows bloom within minutes
+    const target = this.temper !== 'tempered' && lm < 0.3 ? 1 : 0;
+    this.bloom = (this.bloom || 0) + (target - (this.bloom || 0)) * Math.min(1, dt / 600);
+  }
   updateTrackers(dt) {
+    if (this.mats[0].def.chocolate) this.trackTemper(dt);
     // tomato-style skins split after a while in boiling water
     if (this.def.skinSplit && !this.skinSplit) {
       // time in water at (nearly) boiling counts, as in the blanching guidance

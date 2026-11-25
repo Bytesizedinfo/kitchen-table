@@ -36,6 +36,7 @@ async function boot() {
   const { Hud } = await import('./ui/hud.js');
   const { Audio } = await import('./audio.js');
   const { BitView } = await import('./render/bitview.js');
+  const { PuddleView } = await import('./render/puddleview.js');
 
   const stageEl = document.getElementById('stage');
   const stage = new Stage(stageEl);
@@ -43,6 +44,7 @@ async function boot() {
   const app = { stage, world, views: new Map(), selected: null, speed: 1, thermal: false, audio: new Audio(), ff: null };
   window.__kt = app;
   app.bitView = new BitView(stage.scene);
+  app.puddleView = new PuddleView(stage.scene);
   const kitchen = buildKitchen(stage);
   app.kitchen = kitchen;
   stage.setCamera([0.02, 0.92, 1.28], [0.0, 0.0, -0.03], 0);
@@ -81,7 +83,7 @@ async function boot() {
     setTimeout(() => hud.hint(''), 4000);
     return p;
   };
-  app.clearTable = () => { world.clear(); app.removeProbe(); app.bitView.clear(); };
+  app.clearTable = () => { world.clear(); app.removeProbe(); app.bitView.clear(); app.puddleView.clear(); };
   app.removeBatch = (batch) => { world.removeBits(world.bits.filter((b) => b.batch === batch)); app.selectPiece(null); };
   app.selectBits = (bit) => { if (app.selected && app.views.get(app.selected)) app.views.get(app.selected).setHighlight(0); app.selected = null; hud.renderBits(bit, world); };
   app.onProbeBit = () => { hud.envHist = []; };
@@ -196,6 +198,7 @@ async function boot() {
   window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return;
     const k = e.key.toLowerCase();
+    if (e.ctrlKey || e.metaKey) return;
     if (k === 'h') app.tools.select('hand');
     else if (k === 't') app.tools.select('tongs');
     else if (k === 'p') app.tools.select('probe');
@@ -237,11 +240,13 @@ async function boot() {
     let charring = 0;
     for (const p of world.pieces) if (p.support && p.support.kind === 'pan') { const g = p.grid; for (let s = 0; s < g.nSkin; s += 7) if (g.Ts[s] > 230) charring += 0.02; }
     for (const b of world.bits) if (b.support === 'pan' && b.Ts > 200) charring += 0.01;
+    for (const pd of world.puddles) if (pd.kind === 'pan' && pd.smoking()) charring += 0.4;
     world.smokeLevel = Math.max(0, Math.min(1, (world.pan.smokePoint ? (world.pan.T - world.pan.smokePoint) / 40 : 0) + charring));
     // physics for bits (real time), then their instances
     const awake = world.bits.filter((b) => !b.held && (b.sleep < 0.6 || b.wake));
     if (awake.length) stepBitPhysics(world, world.bits.filter((b) => !b.held), rdt);
     app.bitView.sync(false, rdt);
+    app.puddleView.sync(world);
     for (const v of app.views.values()) v.sync(now);
     kitchen.update(world, rdt * app.speed, rdt);
     // probe visual
@@ -322,6 +327,19 @@ async function stageScene(name, app) {
     const c = W.add('carrot'); W.place(c, 'board', [-0.35, 0.235]); const cv = new FoodView(c, meshPiece(c), app.stage.scene); app.views.set(c, cv);
     for (let i = 0; i < 240; i++) W.tick(1); // let the cut apple and avocado brown a little
     app.stage.setCamera(params.has('pan') ? [0.16, 0.36, 0.2] : params.has('close') ? [-0.4, 0.22, 0.29] : [-0.39, 0.36, 0.36], params.has('pan') ? [0.16, 0.09, -0.04] : params.has('close') ? [-0.4, 0.03, 0.14] : [-0.39, 0.03, 0.13], 0);
+  } else if (name === 'cold') {
+    // frozen steak thawing on the board, ice cream melting on the plate, butter in the pan, cheese in the fridge
+    W.burners[0].setting = 4;
+    const st = W.add('steak', { T0: -18 }); W.place(st, 'board', [-0.45, 0.14]); mk(st);
+    const ic = W.add('icecream', { T0: -15 }); W.place(ic, 'plate', [-0.39, -0.24]); mk(ic);
+    const ic2 = W.add('icecream', { T0: -15 }); W.place(ic2, 'plate', [-0.33, -0.2]); mk(ic2);
+    const bu = W.add('butter', { T0: 4 }); W.place(bu, 'pan'); mk(bu);
+    const ch = W.add('cheddar', { T0: 4 }); W.place(ch, 'fridge', [-0.6, -0.25]); mk(ch);
+    const mz = W.add('mozzarella', { T0: 4 }); W.place(mz, 'fridge', [-0.54, -0.2]); mk(mz);
+    const ck = W.add('choc_dark', { T0: 20 }); W.place(ck, 'board', [-0.29, 0.13]); mk(ck);
+    const ic3 = W.add('icecream', { T0: -18 }); W.place(ic3, 'freezer'); mk(ic3);
+    for (let i = 0; i < 900; i++) W.tick(1);
+    app.stage.setCamera(params.has('pan') ? [0.16, 0.3, 0.2] : [-0.3, 0.5, 0.42], params.has('pan') ? [0.16, 0.09, -0.04] : [-0.36, 0.03, -0.05], 0);
   } else if (name === 'kitchen') {
     W.burners[0].setting = 6; W.burners[1].setting = 9; W.pot.T = 97;
     for (let i = 0; i < 400; i++) W.tick(1);

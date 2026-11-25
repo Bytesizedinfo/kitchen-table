@@ -139,6 +139,37 @@ export function buildKitchen(stage) {
   const plate = new THREE.Mesh(new THREE.LatheGeometry(plateProfile, 64), new THREE.MeshPhysicalMaterial({ color: 0xf5f3ee, roughness: 0.18, clearcoat: 0.8, clearcoatRoughness: 0.15 }));
   plate.position.set(L.plate.x, 0, L.plate.z); plate.castShadow = true; plate.receiveShadow = true; scene.add(plate);
 
+  // fridge + freezer cabinet with glass doors (freezer left, fridge right)
+  const F = L.fridge;
+  const fridge = new THREE.Group();
+  const shellMat = new THREE.MeshStandardMaterial({ color: 0xe9eaec, roughness: 0.35, metalness: 0.2, side: THREE.DoubleSide });
+  const wallT = 0.012;
+  const addBox = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; fridge.add(m); return m; };
+  addBox(F.w, wallT, F.d, 0, F.h - wallT / 2, 0, shellMat); // top
+  addBox(F.w, F.floor, F.d, 0, F.floor / 2, 0, shellMat); // base
+  addBox(wallT, F.h, F.d, -F.w / 2 + wallT / 2, F.h / 2, 0, shellMat);
+  addBox(wallT, F.h, F.d, F.w / 2 - wallT / 2, F.h / 2, 0, shellMat);
+  addBox(F.w, F.h, wallT, 0, F.h / 2, -F.d / 2 + wallT / 2, shellMat); // back
+  addBox(wallT, F.h, F.d, 0, F.h / 2, 0, shellMat); // divider
+  const frost = new THREE.MeshStandardMaterial({ color: 0xdfeefa, roughness: 0.9, emissive: 0x2a3a48, emissiveIntensity: 0.25 });
+  addBox(F.w / 2 - wallT * 1.5, 0.002, F.d - wallT * 2, -F.w / 4, F.floor + 0.001, 0, frost);
+  addBox(F.w / 2 - wallT * 1.5, 0.002, F.d - wallT * 2, F.w / 4, F.floor + 0.001, 0, new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.5 }));
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0xcfe6f2, roughness: 0.05, transparent: true, opacity: 0.16, metalness: 0, depthWrite: false });
+  for (const sx of [-1, 1]) {
+    const door = new THREE.Mesh(new THREE.BoxGeometry(F.w / 2 - 0.006, F.h - F.floor - 0.012, 0.004), glass);
+    door.position.set((sx * F.w) / 4, F.floor + (F.h - F.floor) / 2, F.d / 2); door.renderOrder = 6; fridge.add(door);
+    addBox(0.008, 0.12, 0.012, sx * 0.02, F.h * 0.55, F.d / 2 + 0.008, new THREE.MeshStandardMaterial({ color: 0x9aa0a6, metalness: 0.9, roughness: 0.3 }));
+  }
+  const label = (text, x) => {
+    const t = canvasTex(256, 64, (g, w, h) => { g.fillStyle = 'rgba(0,0,0,0)'; g.clearRect(0, 0, w, h); g.fillStyle = '#2b3540'; g.font = '600 30px Inter, sans-serif'; g.textAlign = 'center'; g.fillText(text, w / 2, 42); });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.0375), new THREE.MeshBasicMaterial({ map: t, transparent: true }));
+    m.position.set(x, F.h - 0.03, F.d / 2 + 0.003); fridge.add(m);
+  };
+  label('Freezer −18 °C', -F.w / 4); label('Fridge 4 °C', F.w / 4);
+  const fl = new THREE.PointLight(0xeef6ff, 0.35, 0.5, 2); fl.position.set(0, F.h - 0.05, 0.02); fridge.add(fl);
+  fridge.position.set(F.x, 0, F.z);
+  scene.add(fridge);
+
   // cooktop
   const ct = L.cooktop;
   const body = new THREE.Mesh(new THREE.BoxGeometry(ct.w, ct.h, ct.d), new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.35, metalness: 0.6 }));

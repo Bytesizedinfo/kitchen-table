@@ -20,6 +20,12 @@ A realistic 3D food preparation simulator in the browser. Heat really moves thro
 - Onion sweats, turns translucent, golden, then deep brown; tomato skins split after 30–60 s in boiling water; bananas brown in the fridge.
 - Fats and oils with smoke points (butter, ghee, olive oils, canola, sunflower, peanut).
 
+## Phase 2b: cold & melting
+
+- Fridge (4 °C) and freezer (−18 °C). Freezing uses the Miles ice-fraction model with latent heat: a frozen steak frosts over, sits on a plateau just below −1.7 °C while freezing, and thaws in the fridge over hours.
+- Butter, dark and milk chocolate, vanilla ice cream, cheddar and mozzarella. Melted food runs off into puddles that can set again: butter foams, turns to brown butter and smokes; ice cream drips; chocolate melts at its Form V point and blooms if it sets without tempering.
+- Pantry items start "as stored" (fridge, freezer or room), or at a temperature you pick.
+
 ## The science
 
 Every number is in [SOURCES.md](SOURCES.md) (also in the app under **Sources**), tagged as sourced, calibrated or constant. Tests in `js/test/tests.js` check the simulator against exact heat-conduction solutions and against the sourced behaviours (Williams' boiled egg, egg proteins at 64 °C, surfaces held below boiling while wet, pectin kinetics, USDA holds, steak doneness and cooking loss).

@@ -102,12 +102,14 @@ export class FoodView {
         const fr = g.skinFrac[s], dry = g.ms[c] * fr;
         const ratio = g.skw0[s] > 0 ? g.skw[s] / g.skw0[s] : 0;
         wet = g.film[s] > 1e-7 ? 1 : Math.min(1, Math.max(0, (ratio - 0.3) / 0.7)) * 0.6;
+        if (p.mats[mi].xw0 < 0.3) wet = 0; // dry foods (chocolate, butter) have no surface water sheen
         void dry;
       } else {
         wet = Math.min(1, g.mw0[c] > 0 ? g.mw[c] / g.mw0[c] : 0) * 0.5;
+        if (p.mats[mi].xw0 < 0.3) wet = 0;
       }
       S[o] = rv * 255; S[o + 1] = gv * 255; S[o + 2] = Math.min(255, br * 63.75); S[o + 3] = Math.min(255, chr * 127.5);
-      M[o] = mi; M[o + 1] = wet * 255; M[o + 2] = Math.max(0, Math.min(255, ((g.T[c] + 20) / 320) * 255)); M[o + 3] = Math.min(255, ez * 127.5);
+      M[o] = mi; M[o + 1] = wet * 255; M[o + 2] = Math.max(0, Math.min(255, ((g.T[c] + 40) / 360) * 255)); M[o + 3] = Math.min(255, ez * 127.5);
       filled[c] = 1;
     }
     // dilate two rings so linear filtering at the surface never blends with empty texels
@@ -149,6 +151,8 @@ export class FoodView {
     const u = this.material.userData.u;
     u.uPeeled.value = p.peeled ? 1 : 0;
     u.uSplit.value = p.skinSplit ? 1 : 0;
+    u.uBloom.value = p.bloom || 0;
+    u.uBlister.value = p.mats[0].def.blister ? 1 : 0;
     if (force || (p.version !== this.uploadedVersion && now - this.lastUpload > 150)) {
       this.upload();
       this.uploadedVersion = p.version;
