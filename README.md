@@ -31,6 +31,14 @@ A realistic 3D food preparation simulator in the browser. Heat really moves thro
 - Jelly dessert that wobbles at the frequency its gelatin stiffness gives (≈4 Hz for a 5 cm jelly), melts at 28–30 °C and sets again below 22 °C. Poke it with the hand. Make your own: warm jelly mix in a glass mould sets in the fridge in 2–4 h; unmould it too soon and it runs.
 - Gummy worms as soft chains: grab one end and pull to stretch it until it tears, cut it with the knife, melt it in a warm pan. Gummy bears, marshmallows (trapped air expands as they warm; they deflate after going gooey), and lollipops that turn tacky above their glass transition.
 
+## Phase 2d: meat, fish & bakery
+
+- Chicken breast with its own protein transitions (54.9–76.1 °C) and USDA safety at 74 °C inside: poached it keeps about 77 % of its weight; held at 60 °C for an hour it loses about 6.6 %.
+- Salmon fillet with silver skin and white fat lines; it turns opaque, then flakes, and loses less water than chicken (ratio from Kong 2008). Safe at 63 °C inside.
+- Bacon renders its fat into the pan (about 91 % of it) and crisps at about 31 % of its raw weight. Pork sausage cooks through to 71 °C in 10–25 min at about 80 % yield; roll it a quarter turn at a time; its casing can split in a hot pan.
+- Two-slot toaster with a shade dial (sets the timer) and a lever: the elements glow, the bread browns on both faces, then pops up.
+- White bread, croissant, glazed donut, chocolate-chip cookie (the chips melt in place), a layer cake (sponge, jam, buttercream) and a cheesecake to slice and plate.
+
 ## The science
 
 Every number is in [SOURCES.md](SOURCES.md) (also in the app under **Sources**), tagged as sourced, calibrated or constant. Tests in `js/test/tests.js` check the simulator against exact heat-conduction solutions and against the sourced behaviours (Williams' boiled egg, egg proteins at 64 °C, surfaces held below boiling while wet, pectin kinetics, USDA holds, steak doneness and cooking loss).

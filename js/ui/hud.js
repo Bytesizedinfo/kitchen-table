@@ -14,6 +14,10 @@ export const CATEGORIES = [
   { id: 'sweets', name: 'Sweets' },
 ];
 const SW = {
+  chicken: 'linear-gradient(135deg,#efb3a8,#d98a80)', salmon: 'linear-gradient(135deg,#f78a62,#e0603c)', bacon: 'repeating-linear-gradient(135deg,#c9484a 0 4px,#f2e4da 4px 7px)',
+  sausage: 'linear-gradient(135deg,#e7a596,#b96f60)', bread_slice: 'radial-gradient(circle at 50% 45%,#f6ecd6 55%,#b9844a 60%)', croissant: 'linear-gradient(135deg,#e5a957,#b06f26)',
+  donut: 'radial-gradient(circle,#2a241f 0 18%,#f4efe4 22% 55%,#d79a58 60%)', cookie: 'radial-gradient(circle at 35% 35%,#5a3418 0 12%,#d6a466 14%)',
+  layer_cake: 'linear-gradient(180deg,#fbf3e2 0 30%,#f7e2a2 30% 55%,#b5192d 55% 62%,#f7e2a2 62%)', cheesecake: 'linear-gradient(180deg,#e0b070 0 15%,#fbf0d6 15% 80%,#b98a52 80%)',
   steak: 'linear-gradient(135deg,#9b2b2f,#5c1418)', egg: 'radial-gradient(circle at 40% 35%,#fffaf0,#e6dccb)', potato: 'radial-gradient(circle at 40% 35%,#b98a55,#6e4a26)',
   onion: 'radial-gradient(circle at 40% 35%,#e6c28a,#9a6a34)', carrot: 'linear-gradient(135deg,#f08a2a,#c2560f)', tomato: 'radial-gradient(circle at 40% 35%,#f05a45,#a5170e)',
   apple: 'radial-gradient(circle at 40% 35%,#e0473f,#8c1418)', lemon: 'radial-gradient(circle at 40% 35%,#ffe766,#e0b812)', banana: 'linear-gradient(135deg,#f7dc5a,#d6a823)',
@@ -110,6 +114,7 @@ export class Hud {
       ['Pan', [0.16, 0.3, 0.22], [0.16, 0.09, -0.04]],
       ['Plate', [-0.37, 0.35, 0.12], [-0.37, 0.02, -0.24]],
       ['Fridge', [-0.62, 0.36, 0.32], [-0.66, 0.12, -0.25]],
+      ['Toaster', [-0.05, 0.46, -0.07], [-0.075, 0.09, -0.33]],
     ]) v.append(el('button', { onclick: () => this.app.stage.setCamera(pos, target) }, name));
   }
   buildStove() {
@@ -136,11 +141,22 @@ export class Hud {
     oil.onchange = () => setOil(oil.value);
     const setOil = (id) => { const o = OILS.find((x) => x[0] === id); W.pan.oil = id; W.pan.oiled = id !== 'none'; W.pan.smokePoint = o[2] ? pv(o[2]) : null; };
     setOil('canola');
-    this.pan.box.append(el('div', { class: 'btnrow' }, el('label', { class: 'chk' }, 'Fat', oil), el('button', { class: 'tbtn', onclick: () => { W.pan.pool = 0; } }, 'Wipe pan')));
+    this.pan.box.append(el('div', { class: 'btnrow' }, el('label', { class: 'chk' }, 'Fat', oil), el('button', { class: 'tbtn', onclick: () => { W.pan.pool = 0; W.pan.fat = 0; } }, 'Wipe pan')));
     this.pot = mk(1, 'Pot', '2 L water');
     const lid = el('input', { type: 'checkbox' });
     lid.onchange = () => { W.pot.lid = lid.checked; };
     this.pot.box.append(el('div', { class: 'btnrow' }, el('label', { class: 'chk' }, lid, 'Lid on'), el('button', { class: 'tbtn', onclick: () => { W.pot.water = pv('pot_water'); W.pot.T = 20; } }, 'Fresh water')));
+    // toaster: shade dial (sets the timer) and lever
+    const tval = el('span', { class: 'big' }, '—'), tst = el('span', { class: 'sub' }, ''), tshade = el('span', { class: 'sub' }, '');
+    const shade = el('input', { type: 'range', min: 1, max: 7, step: 1, value: W.toaster.shade, 'aria-label': 'Toaster shade' });
+    shade.oninput = () => { W.toaster.shade = +shade.value; };
+    const lever = el('button', { class: 'tbtn', onclick: () => { if (W.toaster.on) W.toastStop(); else W.toastStart(); } }, 'Push lever down');
+    const tbox = el('div', { class: 'burner' },
+      el('div', { class: 'row' }, el('span', {}, el('span', { class: 'name' }, 'Toaster'), ' ', el('span', { class: 'sub' }, 'element')), tval),
+      el('div', { class: 'row' }, tshade, tst), shade, el('div', { class: 'ticks' }, el('span', {}, 'Light'), el('span', {}, ''), el('span', {}, 'Dark')),
+      el('div', { class: 'btnrow' }, lever));
+    card.append(tbox);
+    this.toast = { val: tval, st: tst, shade, shadeLbl: tshade, lever };
   }
   buildProbe() {
     const c = this.probeCard;
@@ -200,6 +216,7 @@ export class Hud {
     const acts = el('div', { class: 'btnrow' },
       p.mould ? el('button', { class: 'tbtn', onclick: () => this.app.unmouldSelected() }, 'Unmould') : null,
       el('button', { class: 'tbtn', onclick: () => this.app.flipSelected() }, 'Flip'),
+      p.def.roll ? el('button', { class: 'tbtn', onclick: () => this.app.rollSelected() }, 'Roll ¼ turn') : null,
       el('button', { class: 'tbtn', onclick: () => this.app.showCutFace() }, 'Show cut face'),
       el('button', { class: 'tbtn', onclick: () => this.app.halveSelected() }, 'Cut in half'),
       el('button', { class: 'tbtn', onclick: () => this.app.removeSelected() }, 'Remove'));
@@ -208,7 +225,7 @@ export class Hud {
   updateItem(p, W) {
     if (!p || !this.itemRows) return;
     const r = this.itemRows;
-    const where = { pan: 'the pan', pot: 'the pot', board: 'the board', plate: 'the plate', table: 'the table', hand: 'your hand', fridge: 'the fridge', freezer: 'the freezer' };
+    const where = { pan: 'the pan', pot: 'the pot', board: 'the board', plate: 'the plate', table: 'the table', hand: 'your hand', fridge: 'the fridge', freezer: 'the freezer', toaster: 'the toaster' };
     r.where.textContent = where[p.support ? p.support.kind : 'table'];
     r.core.textContent = fmtT(p.coreT());
     r.coldest.textContent = fmtT(p.minT());
@@ -216,11 +233,11 @@ export class Hud {
     r.done.textContent = p.doneness() || '—';
     if (p.def.safe) {
       const ok = p.safe;
-      r.safe.replaceChildren(el('span', { class: 'tag ' + (ok ? 'good' : 'warn') }, ok ? 'safe' : p.def.safe === 'beef' ? 'not yet (63 °C + 3 min)' : p.def.safe === 'egg' ? 'not yet (yolk & white firm)' : 'not yet'));
+      r.safe.replaceChildren(el('span', { class: 'tag ' + (ok ? 'good' : 'warn') }, ok ? 'safe' : p.def.safe === 'beef' ? 'not yet (63 °C + 3 min)' : p.def.safe === 'egg' ? 'not yet (yolk & white firm)' : p.def.safe === 'poultry' ? 'not yet (74 °C inside)' : p.def.safe === 'fish' ? 'not yet (63 °C inside)' : p.def.safe === 'ground' ? 'not yet (71 °C inside)' : 'not yet'));
     } else r.safe.textContent = 'n/a';
     const m = p.mass() * 1000 + p.shell * 1000, m0 = p.initMass * 1000 + p.shell * 1000;
     r.mass.textContent = `${m.toFixed(0)} g (−${Math.max(0, (1 - m / m0) * 100).toFixed(1)} %)`;
-    const b = p.skinMean(p.grid.brown);
+    const b = p.def.done === 'toast' ? p.faceBrown() : p.skinMean(p.grid.brown);
     r.brown.textContent = b < 0.05 ? 'none' : b < 0.4 ? 'light' : b < 1.2 ? 'golden-brown' : b < 2.5 ? 'deep brown' : 'very dark';
     // frozen water share and melted share
     const g = p.grid; let fz = 0, wsum = 0;
@@ -255,7 +272,15 @@ export class Hud {
     this.pan.val.textContent = fmtT(W.pan.T, 0);
     const bp = W.pan.butter;
     this.pan.st.textContent = W.pan.smokePoint && W.pan.T > W.pan.smokePoint ? 'fat smoking!' : bp ? (bp.foam > 0.05 ? 'butter foaming' : bp.brown > 0.4 ? 'brown butter' : 'melted butter') : W.pan.pool > 0.0005 ? `juice ${(W.pan.pool * 1000).toFixed(0)} g` : '';
+    if (W.pan.fat > 0.0005 && !this.pan.st.textContent) this.pan.st.textContent = `rendered fat ${(W.pan.fat * 1000).toFixed(0)} g`;
     this.pot.val.textContent = fmtT(W.pot.T, 0);
+    const ts = W.toaster, tu = this.toast;
+    if (document.activeElement !== tu.shade && +tu.shade.value !== ts.shade) tu.shade.value = ts.shade;
+    tu.val.textContent = ts.Te > 60 ? fmtT(ts.Te, 0) : 'cold';
+    tu.shadeLbl.textContent = `Shade ${ts.shade} · ${Math.round(ts.toastTime())} s`;
+    const slices = W.pieces.filter((q) => q.support && q.support.kind === 'toaster').length;
+    tu.st.textContent = ts.on ? `toasting · ${Math.ceil(ts.timer)} s left` : slices ? `${slices} slice${slices > 1 ? 's' : ''} in` : 'drop bread in a slot';
+    tu.lever.textContent = ts.on ? 'Cancel (pop up)' : 'Push lever down';
     const P = W.pot;
     this.pot.st.textContent = P.water < 0.05 ? 'boiled dry!' : P.boiling ? `rolling boil · ${(P.water).toFixed(2)} L` : P.T > 85 ? `simmering · ${(P.water).toFixed(2)} L` : `${(P.water).toFixed(2)} L`;
   }

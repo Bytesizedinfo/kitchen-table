@@ -5,7 +5,8 @@
 //   uMat   RGBA8: r = material index (texelFetch, up to 4 blended), g = surface wetness, b = (T+20)/320,
 //                 a = enzymatic (PPO) browning / 2
 // Texture kinds (uProps.w): 1 meat 2 potato 3 egg shell 4 onion 5 tomato 6 apple 7 citrus
-// 8 strawberry 9 avocado 10 banana 11 carrot 12 pepper 13 garlic
+// 8 strawberry 9 avocado 10 banana 11 carrot 12 pepper 13 garlic … 22 salmon 23 sausage 24 laminated pastry
+// 25 crumb (bread, cake, cookie) 26 sugar glaze
 import * as THREE from 'three';
 
 const FRAG_HEAD = /* glsl */`
@@ -105,6 +106,33 @@ void foodShade(){
     col *= 0.9 + 0.15 * smoothstep(0.7, 1.0, kNoise(vRest * 500.0));
   } else if (kind == 11.0) {
     col *= 0.95 + 0.07 * kNoise(vRest * vec3(80.0, 900.0, 900.0));
+  } else if (kind == 22.0) {
+    if (mi == 0) {
+      // salmon: white fat lines (myocommata) in chevrons; once cooked the flakes part along them
+      float ch = vRest.x + abs(vRest.z) * 0.9 + kNoise(vRest * 90.0) * 0.003;
+      float line = smoothstep(0.80, 0.97, abs(fract(ch / 0.0115) * 2.0 - 1.0));
+      col = mix(col, kLin(vec3(0.99, 0.90, 0.84)), line * mix(0.65, 0.45, st.r));
+      if (!outer) col *= 1.0 - 0.18 * line * smoothstep(0.3, 1.0, st.g);
+      col *= 0.95 + 0.08 * kNoise(vRest * vec3(1200.0, 300.0, 1200.0));
+    }
+  } else if (kind == 23.0) {
+    // coarse ground meat: specks of fat
+    col = mix(col, kLin(vec3(0.97, 0.90, 0.84)), smoothstep(0.58, 0.72, kNoise(vRest * 950.0)) * 0.55);
+    col *= 0.92 + 0.12 * kNoise(vRest * 2200.0);
+  } else if (kind == 24.0) {
+    // laminated pastry: thin buttery sheets with air pockets between them
+    float l = fract((vRest.y + kNoise(vRest * 70.0) * 0.004) / 0.0022);
+    col *= 0.86 + 0.18 * smoothstep(0.25, 0.75, l);
+    col = mix(col, col * 0.7, smoothstep(0.26, 0.12, kCell(vRest * vec3(260.0, 650.0, 260.0))));
+  } else if (kind == 25.0) {
+    // crumb: open pores, darker where they are shadowed
+    float pore = smoothstep(0.30, 0.16, kCell(vRest * 620.0)) + 0.5 * smoothstep(0.25, 0.12, kCell(vRest * 1500.0 + 3.1));
+    col *= 1.0 - 0.2 * clamp(pore, 0.0, 1.0);
+    rough = 0.9;
+  } else if (kind == 26.0) {
+    // sugar glaze: glossy, glassier when warm
+    col *= 0.96 + 0.06 * kNoise(vRest * 800.0);
+    rough = mix(pr.y, 0.06, st.r);
   }
   // ---- natural outer surface (peel, shell, skin) ----
   if (outer && pr.x > 0.5 && uPeeled < 0.5) {
@@ -128,6 +156,21 @@ void foodShade(){
     else if (kind == 10.0) { float tip = smoothstep(0.075, 0.09, abs(vRest.x)); sk = mix(sk, kLin(vec3(0.28, 0.20, 0.10)), tip); sk *= 0.92 + 0.12 * kNoise(vRest * vec3(40.0, 400.0, 400.0)); rough = 0.5; }
     else if (kind == 12.0) { rough = 0.12; }
     else if (kind == 13.0) { sk *= 0.9 + 0.15 * kNoise(vRest * vec3(1800.0, 120.0, 1800.0)); rough = 0.5; }
+    else if (kind == 22.0) {
+      // silver salmon skin with darker speckles and a faint scale pattern
+      sk *= 0.82 + 0.3 * kNoise(vRest * 500.0);
+      sk = mix(sk, kLin(vec3(0.18, 0.2, 0.22)), smoothstep(0.2, 0.08, kCell(vRest * 260.0)) * 0.6);
+      sk *= 0.94 + 0.08 * smoothstep(0.3, 0.5, kCell(vRest * 1400.0));
+      rough = 0.28;
+    } else if (kind == 23.0) {
+      // natural casing: glossy and slightly translucent; once it splits the meat shows through a crack
+      sk *= 0.96 + 0.06 * kNoise(vRest * vec3(80.0, 900.0, 900.0));
+      rough = 0.22;
+      if (uSplit > 0.5) {
+        float cr = smoothstep(0.0028, 0.0008, abs(vRest.z + 0.0015 * sin(vRest.x * 180.0))) * step(0.0, vRest.y) * step(abs(vRest.x), 0.042);
+        sk = mix(sk, col * 1.05, cr); rough = mix(rough, 0.6, cr);
+      }
+    }
     col = sk;
   }
   // chocolate set without tempering: dull with grey-white streaks (fat bloom)
@@ -183,7 +226,7 @@ export function makeFoodMaterial(palette) {
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = gFoodRough;')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += gFoodCol * gFoodGlow * 0.12;');
   };
-  mat.customProgramCacheKey = () => 'food-v6';
+  mat.customProgramCacheKey = () => 'food-v7';
   return mat;
 }
 

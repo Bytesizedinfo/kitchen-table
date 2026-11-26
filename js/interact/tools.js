@@ -145,7 +145,7 @@ export class Tools {
       const cx = (b.lo[0] + b.hi[0]) / 2, cz = (b.lo[2] + b.hi[2]) / 2;
       p.pos[0] += hp.x + this.drag.offX - cx; p.pos[2] += hp.z + this.drag.offZ - cz;
       p._bcKey = '';
-      app.dropPreview(this.dropTarget(hp.x + this.drag.offX, hp.z + this.drag.offZ));
+      app.dropPreview(this.dropTarget(hp.x + this.drag.offX, hp.z + this.drag.offZ, this.drag.piece));
       return;
     }
     if (this.dragBits) {
@@ -215,7 +215,7 @@ export class Tools {
       const p = this.drag.piece;
       const b = p.bounds();
       const x = (b.lo[0] + b.hi[0]) / 2, z = (b.lo[2] + b.hi[2]) / 2;
-      const t = this.dropTarget(x, z);
+      const t = this.dropTarget(x, z, p);
       W.place(p, t.kind, t.xz);
       if (t.kind === 'pan' && W.pan.T > 120) app.audio?.sizzleBurst();
       if (t.kind === 'pot') app.audio?.splash();
@@ -258,8 +258,14 @@ export class Tools {
     }
   }
   /** Where would a piece centred at (x,z) land? */
-  dropTarget(x, z) {
+  dropTarget(x, z, piece = null) {
     const W = this.app.world;
+    const T = L.toaster;
+    if (Math.abs(x - T.x) < T.w / 2 + 0.01 && Math.abs(z - T.z) < T.d / 2 + 0.01) {
+      // only slices of bread fit the slots; anything else lands on the table in front of the toaster
+      if (piece && piece.def.toastable) return { kind: 'toaster', xz: [x, z] };
+      return { kind: 'table', xz: [x, T.z + T.d / 2 + 0.07] };
+    }
     const dp = Math.hypot(x - W.pan.x, z - W.pan.z), dq = Math.hypot(x - W.pot.x, z - W.pot.z);
     if (dp < L.pan.rTop + 0.02) { const k = Math.min(1, (L.pan.r - 0.035) / Math.max(dp, 1e-6)); return { kind: 'pan', xz: [W.pan.x + (x - W.pan.x) * k, W.pan.z + (z - W.pan.z) * k] }; }
     if (dq < L.pot.r + 0.02) { const k = Math.min(1, (L.pot.r - 0.03) / Math.max(dq, 1e-6)); return { kind: 'pot', xz: [W.pot.x + (x - W.pot.x) * k, W.pot.z + (z - W.pot.z) * k] }; }

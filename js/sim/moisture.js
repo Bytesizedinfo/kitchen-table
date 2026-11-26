@@ -100,3 +100,33 @@ export function dripStep(piece, submergedDissolve = false) {
   }
   return drip;
 }
+
+/**
+ * Fat rendering (bacon, sausage): once fat tissue is hot enough for its cell walls to give way, the
+ * melted fat runs out. Each cell can lose up to `renderFat` of its fat (from cooking yields).
+ * Returns the rendered fat mass (kg); it leaves the food (into the pan).
+ */
+export function renderStep(piece, dt) {
+  const g = piece.grid, arr = g.proc.fatOut;
+  if (!arr) return 0;
+  const Tm = pv('render_Tm'), k = 1 - Math.exp(-dt / pv('render_tau'));
+  const { T, ms } = g;
+  let out = 0;
+  for (let mi = 0; mi < piece.mats.length; mi++) {
+    const m = piece.mats[mi], rf = m.def.renderFat;
+    if (!rf) continue;
+    const rmax = typeof rf === 'string' ? pv(rf) : rf, fs = m.fatFracSolids;
+    const cells = g.matCells[mi];
+    for (let q = 0; q < cells.length; q++) {
+      const c = cells[q], t = T[c];
+      if (t < Tm - 25) continue;
+      const target = rmax / (1 + Math.exp(-(t - Tm) / 4));
+      if (target <= arr[c]) continue;
+      const d = (target - arr[c]) * k;
+      const ms0 = ms[c] / (1 - arr[c] * fs); // dry mass before any fat left this cell
+      const dm = d * fs * ms0;
+      ms[c] -= dm; arr[c] += d; out += dm;
+    }
+  }
+  return out;
+}

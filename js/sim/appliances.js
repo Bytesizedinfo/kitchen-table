@@ -44,7 +44,7 @@ export class Pan {
       this.pool -= (qEv * dt) / pv('Lv');
     }
     this.evap = qEv / pv('Lv');
-    this.T += (dt * (this.burner.power() - loss - this.foodQ - qEv)) / (C + this.pool * 4180);
+    this.T += (dt * (this.burner.power() - loss - this.foodQ - qEv)) / (C + this.pool * 4180 + (this.fat || 0) * 2000);
     this.foodQ = 0;
   }
 }
@@ -93,5 +93,28 @@ export class Pot {
     this.evap = evap;
     this.T = T;
     this.foodQ = 0;
+  }
+}
+
+/** Two-slot pop-up toaster: nichrome elements on both sides of each slot radiate onto the bread. */
+export class Toaster {
+  constructor() {
+    const L = LAYOUT.toaster;
+    this.kind = 'toaster'; this.x = L.x; this.z = L.z;
+    this.shade = 4; // 1 (light) … 7 (dark): sets the timer
+    this.on = false; this.timer = 0; this.Te = pv('Tamb');
+  }
+  toastTime() { return pv('toast_t0') + pv('toast_dt') * (this.shade - 1); }
+  start() { this.on = true; this.timer = this.toastTime(); }
+  stop() { this.on = false; this.timer = 0; }
+  level() { return this.on ? 1 : 0; } // part of the face-classification key, so bread re-classifies when it drops
+  /** World position of a slot's centre line at floor height. */
+  slotPos(i) { const L = LAYOUT.toaster; return [this.x, this.on ? L.floorDown : L.floorUp, this.z + L.slotZ[i]]; }
+  step(dt, Tamb) {
+    let popped = false;
+    if (this.on) { this.timer -= dt; if (this.timer <= 0) { this.on = false; this.timer = 0; popped = true; } }
+    const target = this.on ? pv('toaster_element') : Tamb;
+    this.Te += (target - this.Te) * (1 - Math.exp(-dt / pv('toaster_tau')));
+    return popped;
   }
 }

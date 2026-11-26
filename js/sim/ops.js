@@ -11,6 +11,16 @@ export function flipPiece(W, p) {
   W.place(p, kind === 'hand' ? 'board' : kind, [cx, cz]);
 }
 
+/** Roll a round piece (sausage) a quarter turn about its long axis where it lies. */
+export function rollPiece(W, p) {
+  const kind = p.support ? p.support.kind : 'board';
+  const b = p.bounds();
+  const cx = (b.lo[0] + b.hi[0]) / 2, cz = (b.lo[2] + b.hi[2]) / 2;
+  const axis = b.hi[0] - b.lo[0] >= b.hi[2] - b.lo[2] ? [1, 0, 0] : [0, 0, 1];
+  p.quat = qMul(qAxis(axis, Math.PI / 2), p.quat);
+  W.place(p, kind === 'hand' ? 'board' : kind, [cx, cz]);
+}
+
 /** Peel a piece: remove its peel material (banana, lemon) or a thin outer layer (potato, carrot…).
  * The exposed flesh can now brown in air. Returns the peel mass removed (kg). */
 export function peelPiece(W, p) {

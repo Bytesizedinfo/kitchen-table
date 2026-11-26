@@ -143,6 +143,19 @@ export class FoodView {
     const s = p.puff || 1;
     this.mesh.scale.setScalar(s);
     if (s !== 1) this.mesh.position.y += (s - 1) * 0.0125;
+    if (p.shrink) {
+      // cooked muscle shrinks along and across its fibres; scale about the piece's own centre so it stays put
+      const sh = p.shrink;
+      if (!this._cen || this._cenGeom !== p.geomVersion) {
+        const P = this.meshData.pos; let cx = 0, cy = 0, cz = 0; const n = P.length / 3;
+        for (let i = 0; i < P.length; i += 3) { cx += P[i]; cy += P[i + 1]; cz += P[i + 2]; }
+        this._cen = new THREE.Vector3(cx / n, cy / n, cz / n); this._cenGeom = p.geomVersion;
+      }
+      this.mesh.scale.set(sh[0], sh[1], sh[2]);
+      const c = this._cen, d = new THREE.Vector3(c.x * (1 - sh[0]), c.y * (1 - sh[1]), c.z * (1 - sh[2]));
+      d.applyQuaternion(this.mesh.quaternion);
+      this.mesh.position.add(d);
+    }
     if (this._geomVersion === undefined) this._geomVersion = p.geomVersion;
     if (p.geomVersion !== this._geomVersion) {
       // shape changed (peeled): re-mesh

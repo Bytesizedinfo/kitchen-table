@@ -3,7 +3,7 @@
 //   ?scene=<name>          stages a scene for screenshots
 import { World } from './sim/world.js';
 import { LAYOUT as L } from './sim/layout.js';
-import { flipPiece, faceUp } from './sim/ops.js';
+import { flipPiece, faceUp, rollPiece } from './sim/ops.js';
 import { cutPiece, meshPiece } from './geom/cutpiece.js';
 import { applyPreset } from './geom/presets.js';
 import { stepBitPhysics } from './sim/bits.js';
@@ -19,6 +19,8 @@ async function runTests() {
   const { runAll } = await import('./test/tests.js');
   const f = params.get('test');
   write('RUNNING ' + f);
+  // let the page finish loading first: long synchronous tests would otherwise hold up its load event
+  if (document.readyState !== 'complete') await new Promise((r) => addEventListener('load', r, { once: true }));
   await new Promise((r) => setTimeout(r, 30));
   await runAll(write, f === 'all' ? null : new RegExp(f));
 }
@@ -139,6 +141,7 @@ async function boot() {
     hud.hint(`Fast-forwarding until the probe reads ${target} °C…`);
   };
   app.flipSelected = () => { if (app.selected) flipPiece(world, app.selected); };
+  app.rollSelected = () => { if (app.selected) rollPiece(world, app.selected); };
   app.unmouldSelected = () => { const p = app.selected; if (p && unmould(world, p)) { hud.hint(p.procMean('liq') > 0.3 ? 'Not set yet: it will run.' : 'Turned out of the mould.'); hud.renderItem(p); } };
   app.removeSelected = () => { if (app.selected) world.remove(app.selected); };
   app.showCutFace = () => {
@@ -380,6 +383,59 @@ async function stageScene(name, app) {
     add('lollipop', 'board', [-0.3, 0.22]);
     j.wob = { x: 0.012, z: 0.004, vx: 0, vz: 0.1, f: 4.2, H: 0.054 };
     app.stage.setCamera([-0.36, 0.38, 0.42], [-0.37, 0.02, 0.02], 0);
+  } else if (name === 'meat') {
+    // seared salmon and poached chicken cut open; bacon and a sausage frying in the pan
+    const cutOpen = (p, kind, xz, nrm = [1, 0, 0], show = true) => {
+      W.place(p, kind, xz);
+      const b = p.bounds();
+      const res = cutPiece(W, p, meshPiece(p), nrm, [(b.lo[0] + b.hi[0]) / 2, 0.05, (b.lo[2] + b.hi[2]) / 2], 0.008);
+      for (const r of res) { if (show) faceUp(W, r.piece, r.piece.capNormals[r.piece.capNormals.length - 1]); app.views.set(r.piece, new FoodView(r.piece, meshPiece(r.piece), app.stage.scene)); }
+      return res.map((r) => r.piece);
+    };
+    W.pan.hold = 180;
+    const sa = W.add('salmon', { T0: 4 }); W.place(sa, 'pan');
+    let t = 0; while (sa.coreT() < 52) { W.tick(1); t++; if (t % 60 === 0) flipPiece(W, sa); }
+    if (sa.quat[3] < 0.5) flipPiece(W, sa);
+    const [s1, s2] = cutOpen(sa, 'plate', [L.plate.x, L.plate.z], [1, 0, 0], false);
+    W.place(s1, 'plate', [L.plate.x - 0.045, L.plate.z]); W.place(s2, 'plate', [L.plate.x + 0.045, L.plate.z + 0.01]);
+    W.pot.hold = 85;
+    const ck = W.add('chicken', { T0: 4 }); W.place(ck, 'pot');
+    while (!ck.safe) W.tick(1);
+    delete W.pot.hold; W.pot.T = 80;
+    const raw = W.add('chicken', { T0: 4 }); W.place(raw, 'board', [L.board.x - 0.1, L.board.z + 0.05]); mk(raw);
+    const [c1, c2] = cutOpen(ck, 'board', [L.board.x + 0.08, L.board.z], [0, 0, 1]);
+    W.place(c1, 'board', [L.board.x + 0.1, L.board.z - 0.06]); W.place(c2, 'board', [L.board.x + 0.1, L.board.z + 0.06]);
+    W.pan.hold = 170;
+    const bacon = [W.add('bacon', { T0: 4 }), W.add('bacon', { T0: 4 })];
+    W.place(bacon[0], 'pan', [W.pan.x - 0.015, W.pan.z - 0.035]); W.place(bacon[1], 'pan', [W.pan.x - 0.015, W.pan.z + 0.0]);
+    const sg = W.add('sausage', { T0: 4 }); W.place(sg, 'pan', [W.pan.x, W.pan.z + 0.05]);
+    for (t = 1; t <= 420; t++) { W.tick(1); if (t % 150 === 0) for (const b of bacon) flipPiece(W, b); if (t % 45 === 0) rollPiece(W, sg); }
+    delete W.pan.hold; W.burners[0].setting = 5;
+    for (const p of [...bacon, sg]) mk(p);
+    app.stage.setCamera(params.has('pan') ? [0.16, 0.3, 0.2] : params.has('close') ? [-0.3, 0.32, 0.3] : [-0.1, 0.78, 0.72], params.has('pan') ? [0.16, 0.09, -0.04] : params.has('close') ? [-0.33, 0.03, -0.05] : [-0.14, 0.03, -0.06], 0);
+  } else if (name === 'bakery') {
+    // a slice cut from a layer cake, cheesecake, pastries, and toast popping out of the toaster
+    const cake = W.add('layer_cake', { T0: 4 }); W.place(cake, 'board', [L.board.x - 0.08, L.board.z]);
+    const b = cake.bounds();
+    const res = cutPiece(W, cake, meshPiece(cake), [1, 0, 0], [b.hi[0] - 0.035, 0.05, (b.lo[2] + b.hi[2]) / 2], 0.006);
+    for (const r of res) app.views.set(r.piece, new FoodView(r.piece, r.mesh, app.stage.scene));
+    const slice = res.sort((a2, b2) => a2.piece.mass() - b2.piece.mass())[0].piece;
+    faceUp(W, slice, slice.capNormals[slice.capNormals.length - 1]);
+    W.place(slice, 'plate', [L.plate.x, L.plate.z]);
+    const add = (id, kind, xz) => { const p = W.add(id); W.place(p, kind, xz); mk(p); return p; };
+    add('croissant', 'board', [L.board.x + 0.11, L.board.z - 0.07]);
+    add('donut', 'board', [L.board.x + 0.11, L.board.z + 0.07]);
+    add('cookie', 'table', [L.board.x + 0.3, L.board.z + 0.17]);
+    add('cheesecake', 'table', [-0.62, 0.22]);
+    // toast: one slice toasted at shade 5 then laid on the plate, two more toasting now
+    const t1 = W.add('bread_slice'); W.place(t1, 'toaster'); W.toaster.shade = 5; W.toastStart();
+    while (W.toaster.on) W.tick(1);
+    W.place(t1, 'plate', [L.plate.x + 0.04, L.plate.z + 0.06]); mk(t1);
+    const t2 = W.add('bread_slice'); W.place(t2, 'toaster', [L.toaster.x, L.toaster.z - 0.03]); mk(t2);
+    const t3 = W.add('bread_slice'); W.place(t3, 'toaster', [L.toaster.x, L.toaster.z + 0.03]); mk(t3);
+    W.toastStart();
+    for (let i = 0; i < 40; i++) W.tick(1);
+    app.stage.setCamera(params.has('toaster') ? [-0.05, 0.4, -0.13] : params.has('close') ? [-0.36, 0.3, 0.12] : [-0.26, 0.86, 0.86], params.has('toaster') ? [-0.075, 0.09, -0.33] : params.has('close') ? [-0.37, 0.02, -0.22] : [-0.26, 0.0, 0.03], 0);
   } else if (name === 'kitchen') {
     W.burners[0].setting = 6; W.burners[1].setting = 9; W.pot.T = 97;
     for (let i = 0; i < 400; i++) W.tick(1);

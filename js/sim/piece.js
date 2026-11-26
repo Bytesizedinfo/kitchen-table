@@ -4,7 +4,7 @@ import { Material } from './props.js';
 import { MATERIALS, FOODS } from './foods.js';
 import { resolveProcs } from './process.js';
 import { heatStep, stableDt } from './heat.js';
-import { moistureStep, juiceStep, dripStep } from './moisture.js';
+import { moistureStep, juiceStep, dripStep, renderStep } from './moisture.js';
 import { processStep } from './process.js';
 import { pv } from './params.js';
 import { qRot, qConj } from './math.js';
@@ -61,6 +61,16 @@ export class Piece {
     }
     if (def.liquidStart && g.proc.liq) g.proc.liq.fill(1); // e.g. warm jelly mix poured into a mould
     g.buildSkin();
+    // baked goods come with their crust already browned (all over, only the edges of a slice, or the top)
+    if (def.initBrown) {
+      const mode = def.crust || 'all';
+      for (let s = 0; s < g.nSkin; s++) {
+        const m = g.skinMask[s];
+        if (mats[g.mat[g.skinCell[s]]].def.chocolate) continue; // chocolate chips are not browned
+        if (mode === 'all' || (mode === 'edge' && m & 51) || (mode === 'top' && m & 4)) g.brown[s] = def.initBrown;
+      }
+    }
+    if (mats.some((m) => m.def.renderFat)) g.addProc('fatOut', 0);
     g.computeDist();
     g.buildMatCells(mats.length);
     const piece = new Piece(foodId, def, spec, mats, g);
@@ -90,6 +100,8 @@ export class Piece {
     this.peelDepth = 0;
     this.splitDose = 0; this.skinSplit = false;
     this.sleepAcc = 0; this.calm = 0;
+    this.noDrain = !!def.noDrain;
+    this.fatRendered = 0; // kg of fat rendered out so far
     this._bcKey = '';
   }
 
@@ -140,7 +152,7 @@ export class Piece {
     this.forFaces((s, d, w, n) => {
       const A = area[d];
       if (sup.kind === 'pot' && w[1] < wl) { g.Awat[s] += A; return; }
-      if (n[1] < -0.6 && w[1] < minY + tol && sup.kind !== 'hand') {
+      if (n[1] < -0.6 && w[1] < minY + tol && sup.kind !== 'hand' && sup.kind !== 'toaster') {
         if (bottomKind === 'con') g.Acon[s] += A; else if (bottomKind === 'wat') g.Awat[s] += A; else g.Ains[s] += A;
         return;
       }
@@ -159,6 +171,11 @@ export class Piece {
       heatStep(this, env, h, acc);
       processStep(this, h);
     }
+    // fat tissue (bacon, sausage) renders: melted fat leaves the food
+    if (this.grid.proc.fatOut) {
+      this._rAcc = (this._rAcc || 0) + dt;
+      if (this._rAcc >= 2) { const f = renderStep(this, this._rAcc); this._rAcc = 0; this.fatRendered += f; out.fat = (out.fat || 0) + f; }
+    }
     if (this.moisture && this.transport !== false) {
       // slow processes run on a coarser clock (their time scales are minutes)
       this._mAcc = (this._mAcc || 0) + dt;
@@ -176,6 +193,13 @@ export class Piece {
   // ---- readouts ----
   coreT() { return this.grid.T[this.grid.core]; }
   minT() { const g = this.grid; let m = 1e9; for (let c = 0; c < g.N; c++) if (g.occ[c] && g.T[c] < m) m = g.T[c]; return m; }
+  /** Coldest reading a thermometer pushed into the thickest part could give: the lowest temperature
+   *  in the inner half of the food (by depth below the surface). */
+  minInteriorT() {
+    const g = this.grid, d = g.dist, lim = Math.max(1, 0.5 * d[g.core]);
+    let m = 1e9; for (let c = 0; c < g.N; c++) if (g.occ[c] && d[c] >= lim && g.T[c] < m) m = g.T[c];
+    return m < 1e8 ? m : this.coreT();
+  }
   maxT() { const g = this.grid; let m = -1e9; for (let c = 0; c < g.N; c++) if (g.occ[c] && g.T[c] > m) m = g.T[c]; return m; }
   surfaceT() { const g = this.grid; let a = 0, s = 0; for (let i = 0; i < g.nSkin; i++) { a += g.skinArea[i]; s += g.skinArea[i] * g.Ts[i]; } return s / a; }
   mass() {
@@ -219,7 +243,25 @@ export class Piece {
     const air = phi * (1 - (this.deflate || 0) * (Tm < T0 + 20 ? 1 : 0));
     this.puff = Math.cbrt((1 - phi) + air * (Tm / T0));
   }
+  /** Slow trackers (every ~2 s): visible shrinking of muscle as it cooks, sausage casing splitting. */
+  slowTrackers() {
+    const d = this.def;
+    if (d.shrink) {
+      const sh = d.shrink, mi = this.mats.length > 1 ? 0 : null;
+      let e = 0; for (const id of sh.by) e += this.procMean(id, mi); e /= sh.by.length;
+      const L = typeof sh.len === 'string' ? pv(sh.len) : sh.len, W = typeof sh.wid === 'string' ? pv(sh.wid) : sh.wid;
+      this.shrink = [1 - L * e, 1, 1 - W * e];
+    }
+    if (d.casing && !this.skinSplit) {
+      // steam builds under the casing once the water beneath it boils (calibrated: no measured burst pressure)
+      const g = this.grid, Tc = pv('casing_split_T'); let hot = 0;
+      for (let s = 0; s < g.nSkin; s++) if (g.T[g.skinCell[s]] >= Tc) hot++;
+      if (hot > 0.2 * g.nSkin) this.skinSplit = true;
+    }
+  }
   updateTrackers(dt) {
+    this._sAcc = (this._sAcc || 0) + dt;
+    if (this._sAcc >= 2) { this._sAcc = 0; this.slowTrackers(); }
     if (this.mats[0].def.chocolate) this.trackTemper(dt);
     if (this.mats[0].def.puffs) this.trackPuff();
     // tomato-style skins split after a while in boiling water
@@ -236,14 +278,52 @@ export class Piece {
       if (t >= pv('safe_beef')) this.safeTimer += dt; else if (!this.safe) this.safeTimer = 0;
       if (this.safeTimer >= pv('safe_beef_rest')) this.safe = true;
     } else if (kind === 'poultry') {
-      if (this.minT() >= pv('safe_poultry')) this.safe = true;
+      if (this.minInteriorT() >= pv('safe_poultry')) this.safe = true;
+    } else if (kind === 'fish') {
+      if (this.minInteriorT() >= pv('safe_fish')) this.safe = true;
+    } else if (kind === 'ground') {
+      if (this.minInteriorT() >= pv('safe_ground')) this.safe = true;
     } else if (kind === 'egg') {
       const white = this.procMean('ovotransferrin', 0), yolk = this.procMean('yolkSet', 1);
       if (white > 0.95 && yolk > 0.9) this.safe = true;
     }
   }
+  /** Mean browning of the faces pointing along ±y in rest space (the two big faces of a slice). */
+  faceBrown() { const g = this.grid; let a = 0, s = 0; for (let i = 0; i < g.nSkin; i++) if (g.skinMask[i] & 12 && !(g.skinMask[i] & 51)) { a += g.skinArea[i]; s += g.skinArea[i] * g.brown[i]; } return a ? s / a : 0; }
   doneness() {
-    const k = this.def.kind;
+    const k = this.def.kind, dn = this.def.done;
+    if (dn === 'poultry') {
+      const t = this.coreMax;
+      if (t < pv('ck_myosin_Tm')) return 'raw';
+      if (t < pv('safe_poultry')) return 'not yet safe (pink-white centre)';
+      if (t < pv('ck_actin_Tm') + 4) return 'cooked, juicy';
+      return 'overcooked, dry';
+    }
+    if (dn === 'fish') {
+      const t = this.coreMax;
+      if (t < pv('sal_opaque_Tm')) return 'raw, translucent';
+      if (t < 55) return 'medium-rare (translucent centre)';
+      if (t < pv('safe_fish')) return 'medium';
+      if (t < 68) return 'cooked through, flakes';
+      return 'dry';
+    }
+    if (dn === 'bacon') {
+      const b = this.skinMean(this.grid.brown);
+      if (b < 0.2) return 'raw';
+      if (b < 0.7) return 'soft, chewy';
+      if (b < 1.8) return 'crisp';
+      if (b < 3) return 'very crisp';
+      return 'burnt';
+    }
+    if (dn === 'sausage') return this.coreMax < pv('safe_ground') ? 'raw in the middle' : this.skinSplit ? 'cooked (casing split)' : 'cooked';
+    if (dn === 'toast') {
+      const b = this.faceBrown();
+      if (b < 0.2) return 'untoasted';
+      if (b < 0.45) return 'lightly toasted';
+      if (b < 1.0) return 'golden toast';
+      if (b < 2.0) return 'dark toast';
+      return 'burnt';
+    }
     if (k === 'meat') {
       const t = this.coreMax;
       if (t < pv('rare_lo')) return 'raw / blue';

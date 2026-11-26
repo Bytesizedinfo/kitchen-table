@@ -140,10 +140,11 @@ export function heatStep(piece, env, dt, out) {
   //    boils water off (vapour escapes through the food). A little bound water stays.
   if (piece.moisture) {
     const Tb = pv('Tboil'), Lv = pv('Lv');
+    const wf = piece._wf || (piece._wf = mats.map((m) => (m.def.boundWater != null ? (typeof m.def.boundWater === 'string' ? pv(m.def.boundWater) : m.def.boundWater) : 0.04)));
     let boil = 0;
     for (let c = 0; c < N; c++) {
       if (!occ[c] || T[c] <= Tb) continue;
-      const avail = mw[c] - 0.04 * ms[c];
+      const avail = mw[c] - wf[mat[c]] * ms[c];
       if (avail <= 0) continue;
       const excess = (T[c] - Tb) * C[c];
       const m = Math.min(avail, excess / Lv);
@@ -170,6 +171,9 @@ function skinStep(piece, env, dt, out) {
   const cRate = pv('char_rate200'), cEa = pv('char_Ea') / pv('Rgas'), cT0 = 1 / (pv('char_T0') + 273.15);
   const hDry = con.hDry;
   const moist = piece.moisture;
+  // a sausage casing slows evaporation from the meat beneath it
+  const evapF = piece.def.casing ? pv('casing_perm') : 1;
+  const greasy = piece._greasy || (piece._greasy = piece.mats.map((m) => !!m.def.renderFat));
   const enzR = pv('enz_rate'), enzW = pv('enz_water'), coatF = [1, pv('enz_lemon'), pv('enz_ascorbic')];
   const ppoArr = g.proc.ppo;
   let sQcon = 0, sQair = 0, sQwat = 0, sQins = 0, sQoil = 0, sLat = 0, sEv = 0;
@@ -187,13 +191,14 @@ function skinStep(piece, env, dt, out) {
     let wetRatio = film > 1e-9 ? 1 : ratio / dryCrit;
     wetRatio = wetRatio < 0 ? 0 : wetRatio > 1 ? 1 : wetRatio;
     // contact conductance peaks while the surface is wet and falls as it dries (Wichchukit et al. 2001)
-    const hc = hDry != null ? hDry + (con.h - hDry) * wetRatio : con.h;
+    // (fatty foods fry in their own rendered fat, so their contact stays oil-wet: Vine 2019 ≈512 W/m²K)
+    const hc = hDry != null && !greasy[g.mat[c]] ? hDry + (con.h - hDry) * wetRatio : con.h;
     const H = hc * Acon + air.h * Aair + wat.h * Awat + ins.h * Ains + oil.h * Aoil;
     const HT = hc * Acon * con.T + air.h * Aair * air.T + wat.h * Awat * wat.T + ins.h * Ains * ins.T + oil.h * Aoil * oil.T;
     const rA = air.eps * sig * Aair;
     const submerged = Awat > 0;
-    const psi = moist && !submerged ? wetRatio : 0;
-    const dryness = submerged ? 0 : 1 - wetRatio;
+    const psi = moist && !submerged ? wetRatio * evapF : 0;
+    const dryness = submerged ? 0 : 1 - wetRatio * evapF; // a casing browns even while the meat under it is wet
     const hm = (air.h * Aair) / CP_AIR;
     let Ts = g.Ts[s], E = 0;
     const availW = film + g.skw[s];

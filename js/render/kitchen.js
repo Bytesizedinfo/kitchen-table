@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { LAYOUT as L, BURNER_TOP } from '../sim/layout.js';
 import { mulberry32 } from '../sim/rng.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 function canvasTex(w, h, draw, srgb = true) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -170,6 +171,48 @@ export function buildKitchen(stage) {
   fridge.position.set(F.x, 0, F.z);
   scene.add(fridge);
 
+  // two-slot toaster: hollow shell with open slots, glowing elements inside, lever and shade dial
+  const TT = L.toaster;
+  const toaster = new THREE.Group();
+  const tShell = new THREE.MeshStandardMaterial({ color: 0xd9d6cf, roughness: 0.28, metalness: 0.55 });
+  const tDark = new THREE.MeshStandardMaterial({ color: 0x1d1b19, roughness: 0.8, metalness: 0.2, side: THREE.DoubleSide });
+  const tBox = (w, h, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; b.receiveShadow = true; toaster.add(b); return b; };
+  const wt = 0.006, sW = TT.slotW, sL = TT.slotL, inner = TT.w - wt * 8;
+  // rounded end walls, front and back walls, base
+  const endGeo = new RoundedBoxGeometry(wt * 4, TT.h, TT.d, 3, 0.012);
+  for (const sx of [-1, 1]) { const e = new THREE.Mesh(endGeo, tShell); e.position.set(sx * (TT.w / 2 - wt * 2), TT.h / 2, 0); e.castShadow = true; e.receiveShadow = true; toaster.add(e); }
+  tBox(inner, TT.h, wt, 0, TT.h / 2, TT.d / 2 - wt / 2, tShell);
+  tBox(inner, TT.h, wt, 0, TT.h / 2, -TT.d / 2 + wt / 2, tShell);
+  tBox(TT.w, 0.012, TT.d, 0, 0.006, 0, tDark);
+  // top plate as strips around the two slots
+  const topY = TT.h - 0.003;
+  const zs = [-TT.d / 2, TT.slotZ[0] - sW / 2, TT.slotZ[0] + sW / 2, TT.slotZ[1] - sW / 2, TT.slotZ[1] + sW / 2, TT.d / 2];
+  for (let i = 0; i < zs.length - 1; i += 2) tBox(inner, 0.006, zs[i + 1] - zs[i], 0, topY, (zs[i] + zs[i + 1]) / 2, tShell);
+  for (const sz of TT.slotZ) for (const sx of [-1, 1]) tBox((inner - sL) / 2, 0.006, sW, sx * (sL / 2 + (inner - sL) / 4), topY, sz, tShell);
+  // dark slot walls, with element wires on both long sides of each slot
+  const glowMat = new THREE.MeshStandardMaterial({ color: 0x2a1a12, emissive: 0x000000, roughness: 0.6 });
+  const wireGeo = new THREE.BoxGeometry(sL, 0.0016, 0.0016);
+  const slotLights = [];
+  for (const sz of TT.slotZ) {
+    tBox(sL + 0.01, TT.h - 0.02, 0.002, 0, TT.h / 2, sz - sW / 2 - 0.004, tDark);
+    tBox(sL + 0.01, TT.h - 0.02, 0.002, 0, TT.h / 2, sz + sW / 2 + 0.004, tDark);
+    for (const side of [-1, 1]) for (let k = 0; k < 9; k++) {
+      const w = new THREE.Mesh(wireGeo, glowMat);
+      w.position.set(0, 0.03 + k * 0.0145, sz + side * (sW / 2 + 0.002)); toaster.add(w);
+    }
+    const sl = new THREE.PointLight(0xff7a2a, 0, 0.16, 2); sl.position.set(0, TT.h - 0.035, sz); toaster.add(sl); slotLights.push(sl);
+  }
+  tBox(inner, 0.004, TT.d - wt * 2, 0, 0.02, 0, tDark); // crumb tray
+  // lever on the right end, shade dial on the front
+  const lever = new THREE.Mesh(new RoundedBoxGeometry(0.03, 0.012, 0.024, 2, 0.004), new THREE.MeshStandardMaterial({ color: 0x24221f, roughness: 0.5 }));
+  lever.castShadow = true; toaster.add(lever);
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.008, 24), new THREE.MeshStandardMaterial({ color: 0x24221f, roughness: 0.4 }));
+  dial.rotation.x = Math.PI / 2; dial.position.set(TT.w / 2 - 0.05, 0.05, TT.d / 2 + 0.004); toaster.add(dial);
+  const dmark = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.002, 0.008), new THREE.MeshBasicMaterial({ color: 0xf2efe8 }));
+  dmark.position.set(0, 0.0045, 0.006); dial.add(dmark);
+  toaster.position.set(TT.x, 0, TT.z);
+  scene.add(toaster);
+
   // cooktop
   const ct = L.cooktop;
   const body = new THREE.Mesh(new THREE.BoxGeometry(ct.w, ct.h, ct.d), new THREE.MeshStandardMaterial({ color: 0x1b1c1e, roughness: 0.35, metalness: 0.6 }));
@@ -298,6 +341,13 @@ export function buildKitchen(stage) {
       juice.visible = pool > 0.0003;
       if (juice.visible) { const r = Math.min(pp.r - 0.006, Math.sqrt(pool / (1000 * 0.0006) / Math.PI)); juice.scale.set(r, r, 1); }
       oil.visible = world.pan.oiled;
+      // toaster: element glow follows its temperature (dull red ≈600 °C → orange ≈900 °C), lever down while toasting
+      const ts = world.toaster, gl = Math.max(0, Math.min(1, (ts.Te - 450) / 450));
+      glowMat.emissive.setRGB(1.0 * gl, 0.32 * gl * gl, 0.05 * gl * gl * gl);
+      glowMat.emissiveIntensity = 1.6 * gl;
+      for (const sl of slotLights) sl.intensity = 0.35 * gl;
+      lever.position.set(TT.w / 2 + 0.012, ts.on ? 0.045 : TT.h - 0.03, 0);
+      dial.rotation.y = -((ts.shade - 1) / 6) * Math.PI * 1.4;
     },
   };
 }

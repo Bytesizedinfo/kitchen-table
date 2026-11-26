@@ -4,6 +4,7 @@ Usage: python -I tools/pw.py "<query>" <out.png> [width height timeout_s] [--gpu
        python -I tools/pw.py "scene=steak" steak.png 1400 900 120 --gpu
 (adapted from pore-pressure/source/tools/pw.py)"""
 import sys, time
+sys.stdout.reconfigure(encoding="utf-8")
 from playwright.sync_api import sync_playwright
 
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
@@ -25,7 +26,7 @@ with sync_playwright() as p:
     pg.on("console", lambda m: logs.append(("console." + m.type, m.text)) if m.type in ("error", "warning") else None)
     pg.on("pageerror", lambda e: logs.append(("pageerror", str(e))))
     t0 = time.time()
-    pg.goto(base + "?" + q, wait_until="load")
+    pg.goto(base + "?" + q, wait_until="load", timeout=180000)
     try:
         pg.wait_for_function("() => { const d = document.getElementById('diag'); return d && /RENDER ok|SUMMARY|ERROR/.test(d.textContent || ''); }", timeout=tmo * 1000)
     except Exception as e:
